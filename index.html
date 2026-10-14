@@ -3,17 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>360 Video Viewer - Marzipano (No Distortion)</title>
+    <title>360 Video Viewer - Panolens</title>
     
-    <!-- Memuat Library Marzipano -->
-    <script src="https://cdn.jsdelivr.net/npm/marzipano@0.10.2/dist/marzipano.js"></script>
+    <!-- Memuat Three.js dan Panolens -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/105/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/panolens@0.12.1/build/panolens.min.js"></script>
     
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: sans-serif; background: #000; }
         
-        /* Container untuk Marzipano */
-        #pano { width: 100%; height: 100%; position: absolute; top: 0; left: 0; cursor: grab; }
-        #pano:active { cursor: grabbing; }
+        /* Container untuk Video 360 */
+        #pano-container { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
 
         /* UI Styling */
         #open-menu-btn {
@@ -28,7 +28,9 @@
             background: rgba(0, 0, 0, 0.85); color: white; padding: 15px;
             border-radius: 8px; display: flex; flex-direction: column; gap: 10px;
             width: 320px; box-shadow: 0 4px 6px rgba(0,0,0,0.5); max-height: 90vh; overflow-y: auto;
+            transition: opacity 0.3s;
         }
+        
         .control-group { border: 1px solid #555; padding: 10px; border-radius: 6px; display: flex; flex-direction: column; gap: 8px; }
         input, button { padding: 8px; border-radius: 4px; border: none; font-family: inherit; }
         input[type="file"] { background: white; color: black; }
@@ -47,35 +49,16 @@
             color: yellow; font-weight: bold; text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
             z-index: 9999; display: none; pointer-events: none; background: rgba(0,0,0,0.5); padding: 5px 15px; border-radius: 20px;
         }
-
-        /* Styling untuk Anotasi/Hotspot */
-        .hotspot-wrapper {
-            display: flex; flex-direction: column; align-items: center;
-            transform: translate(-50%, -100%); /* Posisikan ke tengah atas titik klik */
-            cursor: default; pointer-events: none; /* Agar tidak menghalangi drag layar */
-        }
-        .hotspot-text {
-            background: rgba(0, 0, 0, 0.7); border: 1px solid #FFD700; color: #FFD700;
-            padding: 5px 10px; border-radius: 6px; font-weight: bold; font-size: 14px;
-            white-space: nowrap; box-shadow: 0 2px 4px rgba(0,0,0,0.5);
-            margin-bottom: 5px; text-shadow: none;
-        }
-        .hotspot-marker {
-            width: 12px; height: 12px; background: red; border-radius: 50%;
-            border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.5);
-        }
     </style>
 </head>
 <body>
 
-    <!-- Tombol Buka Menu -->
     <button id="open-menu-btn">☰ Buka Menu</button>
 
-    <!-- Panel Kontrol UI -->
     <div id="ui-container">
         <div class="control-group">
             <label>1. Sumber Video:</label>
-            <input type="file" id="file-upload" accept="video/mp4,video/webm">
+            <input type="file" id="file-upload" accept="video/mp4,video/webm,video/mov">
             <input type="url" id="url-input" placeholder="URL Video (Support CORS)">
             <button id="load-btn">Muat Video</button>
         </div>
@@ -88,7 +71,7 @@
         <div class="control-group">
             <label>3. Anotasi 3D:</label>
             <button id="annot-btn" class="btn-toggle off">📍 Mode Anotasi: OFF</button>
-            <small>*Bila ON, klik bagian mana saja pada video untuk menambahkan anotasi.</small>
+            <small>*Bila ON, klik bagian mana saja pada video untuk menambahkan anotasi melayang.</small>
         </div>
         
         <button id="clear-annot-btn" style="background: #6c757d;">Hapus Semua Anotasi</button>
@@ -97,9 +80,8 @@
 
     <div id="crosshair-info">Klik area video untuk menambah anotasi!</div>
 
-    <!-- Div Utama untuk Viewer & Tag Video Tersembunyi -->
-    <div id="pano"></div>
-    <video id="video-src" loop crossorigin="anonymous" playsinline webkit-playsinline style="display:none;"></video>
+    <!-- Div Utama untuk Panolens -->
+    <div id="pano-container"></div>
 
     <script>
         // DOM Elements
@@ -113,18 +95,20 @@
         const openMenuBtn = document.getElementById('open-menu-btn');
         const uiContainer = document.getElementById('ui-container');
         const crosshairInfo = document.getElementById('crosshair-info');
-        const panoElement = document.getElementById('pano');
-        const videoElement = document.getElementById('video-src');
+        const panoContainer = document.getElementById('pano-container');
 
-        // State Global
         let isAnnotMode = false;
-        let currentScene = null;
-        let hotspotElements = []; // Menyimpan referensi DOM anotasi
+        let currentPanorama = null;
+        let infospots = [];
 
-        // Inisialisasi Marzipano Viewer
-        const viewer = new Marzipano.Viewer(panoElement);
+        // Inisialisasi Panolens Viewer
+        const viewer = new PANOLENS.Viewer({
+            container: panoContainer,
+            controlBar: false, // Mematikan tombol kontrol bawaan bawah layar
+            cameraFov: 60      // FOV di-set ke 60 untuk mencegah stretch distorsi di pinggir layar
+        });
 
-        // --- Logika Menu ---
+        // Toggle UI Menu
         hideMenuBtn.addEventListener('click', () => {
             uiContainer.style.display = 'none';
             openMenuBtn.style.display = 'block';
@@ -135,7 +119,7 @@
             openMenuBtn.style.display = 'none';
         });
 
-        // --- Logika Load Video ---
+        // Fungsi Load Video
         loadBtn.addEventListener('click', () => {
             let videoUrl = '';
             if (fileUpload.files.length > 0) {
@@ -147,47 +131,63 @@
                 return;
             }
 
-            videoElement.src = videoUrl;
-            videoElement.load();
-            videoElement.play().catch(err => {
-                alert("Browser memblokir Autoplay. Klik mana saja di layar untuk memutar video.");
-            });
-        });
-
-        // Event saat metadata video termuat (mendapatkan ukuran resolusi dll)
-        videoElement.addEventListener('loadedmetadata', () => {
-            // Jika sebelumnya sudah ada video yang diputar, hancurkan scene lama
-            if (currentScene) {
-                viewer.destroyScene(currentScene);
-                hotspotElements = []; // Reset anotasi
+            // Hapus panorama sebelumnya jika ada
+            if (currentPanorama) {
+                viewer.remove(currentPanorama);
+                currentPanorama.dispose();
+                infospots = [];
             }
 
-            // Integrasikan Video sebagai Source (tekstur dinamis)
-            const source = new Marzipano.MediaElementSource(videoElement);
-            
-            // Atur Geometri dan Proyeksi (Rectilinear mengoreksi distorsi fisheye)
-            const geometry = new Marzipano.EquirectGeometry([{ width: videoElement.videoWidth }]);
-            
-            // Batasi FOV maksimal agar tidak pecah/melengkung (sekitar 110 derajat)
-            const limiter = Marzipano.RectilinearView.limit.traditional(videoElement.videoWidth || 2048, 110 * Math.PI / 180);
-            
-            // Set FOV awal yang nyaman (kira-kira 80 derajat)
-            const view = new Marzipano.RectilinearView({ fov: 80 * Math.PI / 180 }, limiter);
-
-            // Buat dan tampilkan Scene
-            currentScene = viewer.createScene({
-                source: source,
-                geometry: geometry,
-                view: view
+            // Memuat video baru menggunakan Panolens
+            currentPanorama = new PANOLENS.VideoPanorama(videoUrl, {
+                autoplay: true,
+                loop: true,
+                muted: false // Atur ke true jika browser Anda memblokir autoplay suara
             });
-            
-            currentScene.switchTo();
+
+            viewer.add(currentPanorama);
+            viewer.setPanorama(currentPanorama);
+
+            // Set tombol looping ke default (ON)
+            loopBtn.innerText = "🔁 Looping: ON";
+            loopBtn.className = "btn-toggle";
+
+            // Event untuk menambahkan anotasi pada klik/tap
+            currentPanorama.addEventListener('click', (event) => {
+                if (!isAnnotMode || !event.intersects || event.intersects.length === 0) return;
+
+                // Ambil kordinat 3D yang diklik
+                const point = event.intersects[0].point;
+                const textInput = prompt("Masukkan teks anotasi:");
+                if (!textInput) return;
+
+                // Buat Infospot (Anotasi bawaan Panolens)
+                // Angka 300 adalah ukuran dari ikon infospot
+                const infospot = new PANOLENS.Infospot(300, PANOLENS.DataImage.Info);
+                infospot.position.copy(point);
+                infospot.addHoverText(textInput);
+                
+                // Supaya teks langsung terlihat tanpa harus di-hover (opsional)
+                infospot.show();
+
+                currentPanorama.add(infospot);
+                infospots.push(infospot);
+
+                // Matikan mode anotasi otomatis setelah 1x klik
+                isAnnotMode = false;
+                annotBtn.innerText = "📍 Mode Anotasi: OFF";
+                annotBtn.className = "btn-toggle off";
+                crosshairInfo.style.display = "none";
+            });
         });
 
-        // --- Logika Toggle Looping ---
+        // Toggle Looping
         loopBtn.addEventListener('click', () => {
-            videoElement.loop = !videoElement.loop;
-            if (videoElement.loop) {
+            if (!currentPanorama) return;
+            const videoEl = currentPanorama.getVideoElement();
+            
+            videoEl.loop = !videoEl.loop;
+            if (videoEl.loop) {
                 loopBtn.innerText = "🔁 Looping: ON";
                 loopBtn.className = "btn-toggle";
             } else {
@@ -196,7 +196,7 @@
             }
         });
 
-        // --- Logika Mode Anotasi ---
+        // Toggle Mode Anotasi
         annotBtn.addEventListener('click', () => {
             isAnnotMode = !isAnnotMode;
             if (isAnnotMode) {
@@ -210,61 +210,11 @@
             }
         });
 
-        // Menambahkan Anotasi lewat klik layar
-        panoElement.addEventListener('click', (event) => {
-            if (!isAnnotMode || !currentScene) return;
-
-            // Dapatkan koordinat klik relatif terhadap pembungkus (Pano)
-            const rect = panoElement.getBoundingClientRect();
-            const mouseX = event.clientX - rect.left;
-            const mouseY = event.clientY - rect.top;
-
-            // Konversi dari piksel layar (X,Y) ke sudut koordinat 3D (Yaw, Pitch)
-            const view = viewer.view();
-            const coords = view.screenToCoordinates({ x: mouseX, y: mouseY });
-
-            if (!coords) return; // Jika klik diluar area render
-
-            const textInput = prompt("Masukkan teks anotasi:");
-            if (!textInput) return;
-
-            // Buat elemen HTML untuk Anotasi
-            const wrapper = document.createElement('div');
-            wrapper.className = 'hotspot-wrapper';
-
-            const textDiv = document.createElement('div');
-            textDiv.className = 'hotspot-text';
-            textDiv.innerText = textInput;
-
-            const markerDiv = document.createElement('div');
-            markerDiv.className = 'hotspot-marker';
-
-            wrapper.appendChild(textDiv);
-            wrapper.appendChild(markerDiv);
-
-            // Masukkan elemen HTML ke dalam Scene 3D pada titik (Yaw, Pitch)
-            const hotspot = currentScene.hotspotContainer().createHotspot(wrapper, {
-                yaw: coords.yaw,
-                pitch: coords.pitch
-            });
-
-            // Simpan referensi hotspot agar bisa dihapus nanti
-            hotspotElements.push({ element: wrapper, ref: hotspot });
-
-            // Otomatis matikan mode anotasi
-            isAnnotMode = false;
-            annotBtn.innerText = "📍 Mode Anotasi: OFF";
-            annotBtn.className = "btn-toggle off";
-            crosshairInfo.style.display = "none";
-        });
-
-        // --- Hapus Semua Anotasi ---
+        // Hapus Semua Anotasi
         clearAnnotBtn.addEventListener('click', () => {
-            if (currentScene) {
-                hotspotElements.forEach(item => {
-                    currentScene.hotspotContainer().destroyHotspot(item.ref);
-                });
-                hotspotElements = [];
+            if (currentPanorama) {
+                infospots.forEach(spot => currentPanorama.remove(spot));
+                infospots = [];
             }
         });
 
