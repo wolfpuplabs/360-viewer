@@ -5,17 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>360 Video Viewer - Panolens</title>
     
-    <!-- Memuat Three.js dan Panolens -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/105/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/panolens@0.12.1/build/panolens.min.js"></script>
     
     <style>
         body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: sans-serif; background: #000; }
-        
-        /* Container untuk Video 360 */
         #pano-container { width: 100%; height: 100%; position: absolute; top: 0; left: 0; }
 
-        /* UI Styling */
         #open-menu-btn {
             position: absolute; top: 20px; left: 20px; z-index: 10000;
             background: rgba(0, 0, 0, 0.8); color: white; padding: 10px 15px;
@@ -80,11 +76,9 @@
 
     <div id="crosshair-info">Klik area video untuk menambah anotasi!</div>
 
-    <!-- Div Utama untuk Panolens -->
     <div id="pano-container"></div>
 
     <script>
-        // DOM Elements
         const fileUpload = document.getElementById('file-upload');
         const urlInput = document.getElementById('url-input');
         const loadBtn = document.getElementById('load-btn');
@@ -101,14 +95,18 @@
         let currentPanorama = null;
         let infospots = [];
 
-        // Inisialisasi Panolens Viewer
+        // Menggunakan FOV 85 agar lebih natural di layar tablet/lebar
         const viewer = new PANOLENS.Viewer({
             container: panoContainer,
-            controlBar: false, // Mematikan tombol kontrol bawaan bawah layar
-            cameraFov: 60      // FOV di-set ke 60 untuk mencegah stretch distorsi di pinggir layar
+            controlBar: false, 
+            cameraFov: 85
         });
 
-        // Toggle UI Menu
+        // Memastikan viewer merespons perubahan ukuran layar
+        window.addEventListener('resize', () => {
+            viewer.onWindowResize();
+        });
+
         hideMenuBtn.addEventListener('click', () => {
             uiContainer.style.display = 'none';
             openMenuBtn.style.display = 'block';
@@ -119,7 +117,6 @@
             openMenuBtn.style.display = 'none';
         });
 
-        // Fungsi Load Video
         loadBtn.addEventListener('click', () => {
             let videoUrl = '';
             if (fileUpload.files.length > 0) {
@@ -131,49 +128,39 @@
                 return;
             }
 
-            // Hapus panorama sebelumnya jika ada
             if (currentPanorama) {
                 viewer.remove(currentPanorama);
                 currentPanorama.dispose();
                 infospots = [];
             }
 
-            // Memuat video baru menggunakan Panolens
             currentPanorama = new PANOLENS.VideoPanorama(videoUrl, {
                 autoplay: true,
                 loop: true,
-                muted: false // Atur ke true jika browser Anda memblokir autoplay suara
+                muted: false
             });
 
             viewer.add(currentPanorama);
             viewer.setPanorama(currentPanorama);
 
-            // Set tombol looping ke default (ON)
             loopBtn.innerText = "🔁 Looping: ON";
             loopBtn.className = "btn-toggle";
 
-            // Event untuk menambahkan anotasi pada klik/tap
             currentPanorama.addEventListener('click', (event) => {
                 if (!isAnnotMode || !event.intersects || event.intersects.length === 0) return;
 
-                // Ambil kordinat 3D yang diklik
                 const point = event.intersects[0].point;
                 const textInput = prompt("Masukkan teks anotasi:");
                 if (!textInput) return;
 
-                // Buat Infospot (Anotasi bawaan Panolens)
-                // Angka 300 adalah ukuran dari ikon infospot
                 const infospot = new PANOLENS.Infospot(300, PANOLENS.DataImage.Info);
                 infospot.position.copy(point);
                 infospot.addHoverText(textInput);
-                
-                // Supaya teks langsung terlihat tanpa harus di-hover (opsional)
                 infospot.show();
 
                 currentPanorama.add(infospot);
                 infospots.push(infospot);
 
-                // Matikan mode anotasi otomatis setelah 1x klik
                 isAnnotMode = false;
                 annotBtn.innerText = "📍 Mode Anotasi: OFF";
                 annotBtn.className = "btn-toggle off";
@@ -181,7 +168,6 @@
             });
         });
 
-        // Toggle Looping
         loopBtn.addEventListener('click', () => {
             if (!currentPanorama) return;
             const videoEl = currentPanorama.getVideoElement();
@@ -196,7 +182,6 @@
             }
         });
 
-        // Toggle Mode Anotasi
         annotBtn.addEventListener('click', () => {
             isAnnotMode = !isAnnotMode;
             if (isAnnotMode) {
@@ -210,14 +195,12 @@
             }
         });
 
-        // Hapus Semua Anotasi
         clearAnnotBtn.addEventListener('click', () => {
             if (currentPanorama) {
                 infospots.forEach(spot => currentPanorama.remove(spot));
                 infospots = [];
             }
         });
-
     </script>
 </body>
 </html>
