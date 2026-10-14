@@ -3,58 +3,36 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>360 Video Viewer - FPV & Annotation</title>
-    <!-- Core A-Frame -->
-    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
-    <!-- Plugin Look-at agar anotasi selalu menghadap kamera -->
-    <script src="https://unpkg.com/aframe-look-at-component@0.8.0/dist/aframe-look-at-component.min.js"></script>
+    <title>360 Video Viewer - Marzipano (No Distortion)</title>
+    
+    <!-- Memuat Library Marzipano -->
+    <script src="https://cdn.jsdelivr.net/npm/marzipano@0.10.2/dist/marzipano.js"></script>
+    
     <style>
-        body { margin: 0; overflow: hidden; font-family: sans-serif; }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: sans-serif; background: #000; }
         
+        /* Container untuk Marzipano */
+        #pano { width: 100%; height: 100%; position: absolute; top: 0; left: 0; cursor: grab; }
+        #pano:active { cursor: grabbing; }
+
+        /* UI Styling */
         #open-menu-btn {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            z-index: 10000;
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
-            padding: 10px 15px;
-            border-radius: 6px;
-            border: 1px solid #444;
-            cursor: pointer;
-            font-weight: bold;
-            display: none; 
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            position: absolute; top: 20px; left: 20px; z-index: 10000;
+            background: rgba(0, 0, 0, 0.8); color: white; padding: 10px 15px;
+            border-radius: 6px; border: 1px solid #444; cursor: pointer;
+            font-weight: bold; display: none; box-shadow: 0 4px 6px rgba(0,0,0,0.3);
         }
 
         #ui-container {
-            position: absolute;
-            top: 20px;
-            left: 20px;
-            z-index: 9999;
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
-            padding: 15px;
-            border-radius: 8px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            width: 320px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-            max-height: 90vh;
-            overflow-y: auto;
-            transition: opacity 0.3s ease;
+            position: absolute; top: 20px; left: 20px; z-index: 9999;
+            background: rgba(0, 0, 0, 0.85); color: white; padding: 15px;
+            border-radius: 8px; display: flex; flex-direction: column; gap: 10px;
+            width: 320px; box-shadow: 0 4px 6px rgba(0,0,0,0.5); max-height: 90vh; overflow-y: auto;
         }
-        .control-group {
-            border: 1px solid #444;
-            padding: 10px;
-            border-radius: 6px;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-        input, button { padding: 8px; border-radius: 4px; border: none; }
+        .control-group { border: 1px solid #555; padding: 10px; border-radius: 6px; display: flex; flex-direction: column; gap: 8px; }
+        input, button { padding: 8px; border-radius: 4px; border: none; font-family: inherit; }
         input[type="file"] { background: white; color: black; }
+        input[type="url"] { background: #fff; color: #000; }
         button { background: #007bff; color: white; cursor: pointer; font-weight: bold; }
         button:hover { background: #0056b3; }
         .btn-toggle { background: #28a745; }
@@ -63,17 +41,28 @@
         .btn-hide { background: #343a40; margin-top: 5px; border: 1px solid #666; }
         .btn-hide:hover { background: #23272b; }
         small { color: #ccc; font-size: 11px; line-height: 1.4; }
+        
         #crosshair-info {
-            position: absolute;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            color: yellow;
-            font-weight: bold;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
-            z-index: 9999;
-            display: none;
-            pointer-events: none;
+            position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%);
+            color: yellow; font-weight: bold; text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            z-index: 9999; display: none; pointer-events: none; background: rgba(0,0,0,0.5); padding: 5px 15px; border-radius: 20px;
+        }
+
+        /* Styling untuk Anotasi/Hotspot */
+        .hotspot-wrapper {
+            display: flex; flex-direction: column; align-items: center;
+            transform: translate(-50%, -100%); /* Posisikan ke tengah atas titik klik */
+            cursor: default; pointer-events: none; /* Agar tidak menghalangi drag layar */
+        }
+        .hotspot-text {
+            background: rgba(0, 0, 0, 0.7); border: 1px solid #FFD700; color: #FFD700;
+            padding: 5px 10px; border-radius: 6px; font-weight: bold; font-size: 14px;
+            white-space: nowrap; box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+            margin-bottom: 5px; text-shadow: none;
+        }
+        .hotspot-marker {
+            width: 12px; height: 12px; background: red; border-radius: 50%;
+            border: 2px solid white; box-shadow: 0 2px 4px rgba(0,0,0,0.5);
         }
     </style>
 </head>
@@ -87,7 +76,7 @@
         <div class="control-group">
             <label>1. Sumber Video:</label>
             <input type="file" id="file-upload" accept="video/mp4,video/webm">
-            <input type="url" id="url-input" placeholder="Atau URL video (harus support CORS)">
+            <input type="url" id="url-input" placeholder="URL Video (Support CORS)">
             <button id="load-btn">Muat Video</button>
         </div>
 
@@ -99,52 +88,43 @@
         <div class="control-group">
             <label>3. Anotasi 3D:</label>
             <button id="annot-btn" class="btn-toggle off">📍 Mode Anotasi: OFF</button>
-            <small>*Bila Mode Anotasi ON, klik bagian mana saja pada video untuk menambahkan teks (Marker).</small>
+            <small>*Bila ON, klik bagian mana saja pada video untuk menambahkan anotasi.</small>
         </div>
         
         <button id="clear-annot-btn" style="background: #6c757d;">Hapus Semua Anotasi</button>
-        
-        <!-- Tombol Sembunyikan Menu -->
         <button id="hide-menu-btn" class="btn-hide">👁️ Sembunyikan Menu</button>
     </div>
 
-    <!-- Teks panduan saat mode anotasi aktif -->
     <div id="crosshair-info">Klik area video untuk menambah anotasi!</div>
 
-    <!-- Scene 360 A-Frame -->
-    <a-scene cursor="rayOrigin: mouse" raycaster="objects: .clickable">
-        <a-assets>
-            <video id="video-src" loop crossorigin="anonymous" playsinline webkit-playsinline></video>
-        </a-assets>
-
-        <!-- Video Sphere -->
-        <a-videosphere id="sphere-video" src="#video-src" rotation="0 -90 0" class="clickable"></a-videosphere>
-
-        <!-- Kamera FPV dengan FOV diturunkan ke 40 agar tidak stretch di layar lebar -->
-        <a-entity id="cam" camera="fov: 40" look-controls="reverseMouseDrag: true" position="0 0 0"></a-entity>
-        
-        <!-- Wadah untuk menyimpan semua anotasi -->
-        <a-entity id="annotations-container"></a-entity>
-    </a-scene>
+    <!-- Div Utama untuk Viewer & Tag Video Tersembunyi -->
+    <div id="pano"></div>
+    <video id="video-src" loop crossorigin="anonymous" playsinline webkit-playsinline style="display:none;"></video>
 
     <script>
+        // DOM Elements
         const fileUpload = document.getElementById('file-upload');
         const urlInput = document.getElementById('url-input');
         const loadBtn = document.getElementById('load-btn');
         const loopBtn = document.getElementById('loop-btn');
         const annotBtn = document.getElementById('annot-btn');
         const clearAnnotBtn = document.getElementById('clear-annot-btn');
-        const videoElement = document.getElementById('video-src');
-        const sphereVideo = document.getElementById('sphere-video');
-        const annotContainer = document.getElementById('annotations-container');
-        const crosshairInfo = document.getElementById('crosshair-info');
-        
-        const uiContainer = document.getElementById('ui-container');
         const hideMenuBtn = document.getElementById('hide-menu-btn');
         const openMenuBtn = document.getElementById('open-menu-btn');
+        const uiContainer = document.getElementById('ui-container');
+        const crosshairInfo = document.getElementById('crosshair-info');
+        const panoElement = document.getElementById('pano');
+        const videoElement = document.getElementById('video-src');
 
+        // State Global
         let isAnnotMode = false;
+        let currentScene = null;
+        let hotspotElements = []; // Menyimpan referensi DOM anotasi
 
+        // Inisialisasi Marzipano Viewer
+        const viewer = new Marzipano.Viewer(panoElement);
+
+        // --- Logika Menu ---
         hideMenuBtn.addEventListener('click', () => {
             uiContainer.style.display = 'none';
             openMenuBtn.style.display = 'block';
@@ -155,6 +135,7 @@
             openMenuBtn.style.display = 'none';
         });
 
+        // --- Logika Load Video ---
         loadBtn.addEventListener('click', () => {
             let videoUrl = '';
             if (fileUpload.files.length > 0) {
@@ -166,13 +147,44 @@
                 return;
             }
 
-            videoElement.setAttribute('src', videoUrl);
+            videoElement.src = videoUrl;
             videoElement.load();
             videoElement.play().catch(err => {
-                alert("Klik layar untuk memulai video (Autoplay Policy Browser).");
+                alert("Browser memblokir Autoplay. Klik mana saja di layar untuk memutar video.");
             });
         });
 
+        // Event saat metadata video termuat (mendapatkan ukuran resolusi dll)
+        videoElement.addEventListener('loadedmetadata', () => {
+            // Jika sebelumnya sudah ada video yang diputar, hancurkan scene lama
+            if (currentScene) {
+                viewer.destroyScene(currentScene);
+                hotspotElements = []; // Reset anotasi
+            }
+
+            // Integrasikan Video sebagai Source (tekstur dinamis)
+            const source = new Marzipano.MediaElementSource(videoElement);
+            
+            // Atur Geometri dan Proyeksi (Rectilinear mengoreksi distorsi fisheye)
+            const geometry = new Marzipano.EquirectGeometry([{ width: videoElement.videoWidth }]);
+            
+            // Batasi FOV maksimal agar tidak pecah/melengkung (sekitar 110 derajat)
+            const limiter = Marzipano.RectilinearView.limit.traditional(videoElement.videoWidth || 2048, 110 * Math.PI / 180);
+            
+            // Set FOV awal yang nyaman (kira-kira 80 derajat)
+            const view = new Marzipano.RectilinearView({ fov: 80 * Math.PI / 180 }, limiter);
+
+            // Buat dan tampilkan Scene
+            currentScene = viewer.createScene({
+                source: source,
+                geometry: geometry,
+                view: view
+            });
+            
+            currentScene.switchTo();
+        });
+
+        // --- Logika Toggle Looping ---
         loopBtn.addEventListener('click', () => {
             videoElement.loop = !videoElement.loop;
             if (videoElement.loop) {
@@ -184,6 +196,7 @@
             }
         });
 
+        // --- Logika Mode Anotasi ---
         annotBtn.addEventListener('click', () => {
             isAnnotMode = !isAnnotMode;
             if (isAnnotMode) {
@@ -197,39 +210,64 @@
             }
         });
 
-        sphereVideo.addEventListener('click', (event) => {
-            if (!isAnnotMode) return; 
+        // Menambahkan Anotasi lewat klik layar
+        panoElement.addEventListener('click', (event) => {
+            if (!isAnnotMode || !currentScene) return;
 
-            const point = event.detail.intersection.point;
-            const textInput = prompt("Masukkan teks anotasi untuk lokasi ini:");
+            // Dapatkan koordinat klik relatif terhadap pembungkus (Pano)
+            const rect = panoElement.getBoundingClientRect();
+            const mouseX = event.clientX - rect.left;
+            const mouseY = event.clientY - rect.top;
+
+            // Konversi dari piksel layar (X,Y) ke sudut koordinat 3D (Yaw, Pitch)
+            const view = viewer.view();
+            const coords = view.screenToCoordinates({ x: mouseX, y: mouseY });
+
+            if (!coords) return; // Jika klik diluar area render
+
+            const textInput = prompt("Masukkan teks anotasi:");
             if (!textInput) return;
 
-            const annotEl = document.createElement('a-entity');
-            const posX = point.x * 0.9;
-            const posY = point.y * 0.9;
-            const posZ = point.z * 0.9;
-            
-            annotEl.setAttribute('position', `${posX} ${posY} ${posZ}`);
-            annotEl.setAttribute('text', `value: ${textInput}; align: center; width: 60; color: #FFD700; font: mozillavr;`);
-            annotEl.setAttribute('look-at', '#cam');
+            // Buat elemen HTML untuk Anotasi
+            const wrapper = document.createElement('div');
+            wrapper.className = 'hotspot-wrapper';
 
-            const marker = document.createElement('a-sphere');
-            marker.setAttribute('radius', '1');
-            marker.setAttribute('color', 'red');
-            marker.setAttribute('position', '0 -2 0');
-            annotEl.appendChild(marker);
+            const textDiv = document.createElement('div');
+            textDiv.className = 'hotspot-text';
+            textDiv.innerText = textInput;
 
-            annotContainer.appendChild(annotEl);
+            const markerDiv = document.createElement('div');
+            markerDiv.className = 'hotspot-marker';
 
+            wrapper.appendChild(textDiv);
+            wrapper.appendChild(markerDiv);
+
+            // Masukkan elemen HTML ke dalam Scene 3D pada titik (Yaw, Pitch)
+            const hotspot = currentScene.hotspotContainer().createHotspot(wrapper, {
+                yaw: coords.yaw,
+                pitch: coords.pitch
+            });
+
+            // Simpan referensi hotspot agar bisa dihapus nanti
+            hotspotElements.push({ element: wrapper, ref: hotspot });
+
+            // Otomatis matikan mode anotasi
             isAnnotMode = false;
             annotBtn.innerText = "📍 Mode Anotasi: OFF";
             annotBtn.className = "btn-toggle off";
             crosshairInfo.style.display = "none";
         });
 
+        // --- Hapus Semua Anotasi ---
         clearAnnotBtn.addEventListener('click', () => {
-            annotContainer.innerHTML = ''; 
+            if (currentScene) {
+                hotspotElements.forEach(item => {
+                    currentScene.hotspotContainer().destroyHotspot(item.ref);
+                });
+                hotspotElements = [];
+            }
         });
+
     </script>
 </body>
 </html>
