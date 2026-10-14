@@ -10,6 +10,24 @@
     <script src="https://unpkg.com/aframe-look-at-component@0.8.0/dist/aframe-look-at-component.min.js"></script>
     <style>
         body { margin: 0; overflow: hidden; font-family: sans-serif; }
+        
+        /* Tombol Buka Menu (Muncul saat UI disembunyikan) */
+        #open-menu-btn {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 10000;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 6px;
+            border: 1px solid #444;
+            cursor: pointer;
+            font-weight: bold;
+            display: none; /* Sembunyi secara default */
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+
         #ui-container {
             position: absolute;
             top: 20px;
@@ -26,6 +44,7 @@
             box-shadow: 0 4px 6px rgba(0,0,0,0.3);
             max-height: 90vh;
             overflow-y: auto;
+            transition: opacity 0.3s ease;
         }
         .control-group {
             border: 1px solid #444;
@@ -42,6 +61,8 @@
         .btn-toggle { background: #28a745; }
         .btn-toggle.off { background: #dc3545; }
         .btn-toggle:hover { filter: brightness(1.2); }
+        .btn-hide { background: #343a40; margin-top: 5px; border: 1px solid #666; }
+        .btn-hide:hover { background: #23272b; }
         small { color: #ccc; font-size: 11px; line-height: 1.4; }
         #crosshair-info {
             position: absolute;
@@ -58,6 +79,9 @@
     </style>
 </head>
 <body>
+
+    <!-- Tombol Buka Menu -->
+    <button id="open-menu-btn">☰ Buka Menu</button>
 
     <!-- Panel Kontrol UI -->
     <div id="ui-container">
@@ -80,6 +104,9 @@
         </div>
         
         <button id="clear-annot-btn" style="background: #6c757d;">Hapus Semua Anotasi</button>
+        
+        <!-- Tambahan Tombol Sembunyikan Menu -->
+        <button id="hide-menu-btn" class="btn-hide">👁️ Sembunyikan Menu</button>
     </div>
 
     <!-- Teks panduan saat mode anotasi aktif -->
@@ -91,7 +118,7 @@
             <video id="video-src" loop crossorigin="anonymous" playsinline webkit-playsinline></video>
         </a-assets>
 
-        <!-- Video Sphere (Radius default 100), diberikan class 'clickable' agar bisa dideteksi oleh klik mouse -->
+        <!-- Video Sphere -->
         <a-videosphere id="sphere-video" src="#video-src" rotation="0 -90 0" class="clickable"></a-videosphere>
 
         <!-- Kamera FPV -->
@@ -113,8 +140,24 @@
         const sphereVideo = document.getElementById('sphere-video');
         const annotContainer = document.getElementById('annotations-container');
         const crosshairInfo = document.getElementById('crosshair-info');
+        
+        // Elemen Toggle Menu
+        const uiContainer = document.getElementById('ui-container');
+        const hideMenuBtn = document.getElementById('hide-menu-btn');
+        const openMenuBtn = document.getElementById('open-menu-btn');
 
         let isAnnotMode = false;
+
+        // Logika Menyembunyikan dan Menampilkan Menu UI
+        hideMenuBtn.addEventListener('click', () => {
+            uiContainer.style.display = 'none';
+            openMenuBtn.style.display = 'block';
+        });
+
+        openMenuBtn.addEventListener('click', () => {
+            uiContainer.style.display = 'flex';
+            openMenuBtn.style.display = 'none';
+        });
 
         // 1. Logika Load Video
         loadBtn.addEventListener('click', () => {
@@ -163,42 +206,29 @@
 
         // 4. Menambahkan Anotasi ke koordinat klik
         sphereVideo.addEventListener('click', (event) => {
-            if (!isAnnotMode) return; // Abaikan jika mode anotasi mati
+            if (!isAnnotMode) return; 
 
-            // Ambil titik koordinat 3D dari hasil klik di permukaan bola video
             const point = event.detail.intersection.point;
-            
-            // Tanya user teks apa yang mau dimasukkan
             const textInput = prompt("Masukkan teks anotasi untuk lokasi ini:");
             if (!textInput) return;
 
-            // Buat elemen entity baru
             const annotEl = document.createElement('a-entity');
-            
-            // Kita tarik sedikit titiknya ke arah dalam kamera (dikali 0.9) agar teks 
-            // tidak tenggelam di permukaan bola video (menghindari z-fighting)
             const posX = point.x * 0.9;
             const posY = point.y * 0.9;
             const posZ = point.z * 0.9;
+            
             annotEl.setAttribute('position', `${posX} ${posY} ${posZ}`);
-            
-            // Atur teksnya, ukurannya, dan warnanya
             annotEl.setAttribute('text', `value: ${textInput}; align: center; width: 60; color: #FFD700; font: mozillavr;`);
-            
-            // Pastikan teks selalu menghadap ke kamera pengguna
             annotEl.setAttribute('look-at', '#cam');
 
-            // Opsional: tambahkan ikon/titik kecil di atas/bawah teks
             const marker = document.createElement('a-sphere');
             marker.setAttribute('radius', '1');
             marker.setAttribute('color', 'red');
             marker.setAttribute('position', '0 -2 0');
             annotEl.appendChild(marker);
 
-            // Masukkan ke dalam container scene
             annotContainer.appendChild(annotEl);
 
-            // Otomatis matikan mode anotasi setelah 1 kali pasang (Opsional, hapus 4 baris ini jika ingin pasang banyak sekaligus)
             isAnnotMode = false;
             annotBtn.innerText = "📍 Mode Anotasi: OFF";
             annotBtn.className = "btn-toggle off";
@@ -207,7 +237,7 @@
 
         // 5. Bersihkan semua anotasi
         clearAnnotBtn.addEventListener('click', () => {
-            annotContainer.innerHTML = ''; // Hapus semua anak elemen di dalam container
+            annotContainer.innerHTML = ''; 
         });
     </script>
 </body>
