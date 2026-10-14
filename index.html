@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>360 Video Viewer - FPV & Annotation</title>
+    <!-- Core A-Frame -->
+    <script src="https://aframe.io/releases/1.4.2/aframe.min.js"></script>
+    <!-- Plugin Look-at agar anotasi selalu menghadap kamera -->
+    <script src="https://unpkg.com/aframe-look-at-component@0.8.0/dist/aframe-look-at-component.min.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; font-family: sans-serif; }
+        #ui-container {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 9999;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            width: 320px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        .control-group {
+            border: 1px solid #444;
+            padding: 10px;
+            border-radius: 6px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        input, button { padding: 8px; border-radius: 4px; border: none; }
+        input[type="file"] { background: white; color: black; }
+        button { background: #007bff; color: white; cursor: pointer; font-weight: bold; }
+        button:hover { background: #0056b3; }
+        .btn-toggle { background: #28a745; }
+        .btn-toggle.off { background: #dc3545; }
+        .btn-toggle:hover { filter: brightness(1.2); }
+        small { color: #ccc; font-size: 11px; line-height: 1.4; }
+        #crosshair-info {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: yellow;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+            z-index: 9999;
+            display: none;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Panel Kontrol UI -->
+    <div id="ui-container">
+        <div class="control-group">
+            <label>1. Sumber Video:</label>
+            <input type="file" id="file-upload" accept="video/mp4,video/webm">
+            <input type="url" id="url-input" placeholder="Atau URL video (harus support CORS)">
+            <button id="load-btn">Muat Video</button>
+        </div>
+
+        <div class="control-group">
+            <label>2. Kontrol Player:</label>
+            <button id="loop-btn" class="btn-toggle">🔁 Looping: ON</button>
+        </div>
+
+        <div class="control-group">
+            <label>3. Anotasi 3D:</label>
+            <button id="annot-btn" class="btn-toggle off">📍 Mode Anotasi: OFF</button>
+            <small>*Bila Mode Anotasi ON, klik bagian mana saja pada video untuk menambahkan teks (Marker).</small>
+        </div>
+        
+        <button id="clear-annot-btn" style="background: #6c757d;">Hapus Semua Anotasi</button>
+    </div>
+
+    <!-- Teks panduan saat mode anotasi aktif -->
+    <div id="crosshair-info">Klik area video untuk menambah anotasi!</div>
+
+    <!-- Scene 360 A-Frame -->
+    <a-scene cursor="rayOrigin: mouse" raycaster="objects: .clickable">
+        <a-assets>
+            <video id="video-src" loop crossorigin="anonymous" playsinline webkit-playsinline></video>
+        </a-assets>
+
+        <!-- Video Sphere (Radius default 100), diberikan class 'clickable' agar bisa dideteksi oleh klik mouse -->
+        <a-videosphere id="sphere-video" src="#video-src" rotation="0 -90 0" class="clickable"></a-videosphere>
+
+        <!-- Kamera FPV -->
+        <a-entity id="cam" camera look-controls position="0 0 0"></a-entity>
+        
+        <!-- Wadah untuk menyimpan semua anotasi -->
+        <a-entity id="annotations-container"></a-entity>
+    </a-scene>
+
+    <script>
+        // DOM Elements
+        const fileUpload = document.getElementById('file-upload');
+        const urlInput = document.getElementById('url-input');
+        const loadBtn = document.getElementById('load-btn');
+        const loopBtn = document.getElementById('loop-btn');
+        const annotBtn = document.getElementById('annot-btn');
+        const clearAnnotBtn = document.getElementById('clear-annot-btn');
+        const videoElement = document.getElementById('video-src');
+        const sphereVideo = document.getElementById('sphere-video');
+        const annotContainer = document.getElementById('annotations-container');
+        const crosshairInfo = document.getElementById('crosshair-info');
+
+        let isAnnotMode = false;
+
+        // 1. Logika Load Video
+        loadBtn.addEventListener('click', () => {
+            let videoUrl = '';
+            if (fileUpload.files.length > 0) {
+                videoUrl = URL.createObjectURL(fileUpload.files[0]);
+            } else if (urlInput.value.trim() !== '') {
+                videoUrl = urlInput.value;
+            } else {
+                alert('Pilih file atau masukkan URL video!');
+                return;
+            }
+
+            videoElement.setAttribute('src', videoUrl);
+            videoElement.load();
+            videoElement.play().catch(err => {
+                alert("Klik layar untuk memulai video (Autoplay Policy Browser).");
+            });
+        });
+
+        // 2. Logika Toggle Looping
+        loopBtn.addEventListener('click', () => {
+            videoElement.loop = !videoElement.loop;
+            if (videoElement.loop) {
+                loopBtn.innerText = "🔁 Looping: ON";
+                loopBtn.className = "btn-toggle";
+            } else {
+                loopBtn.innerText = "🔁 Looping: OFF";
+                loopBtn.className = "btn-toggle off";
+            }
+        });
+
+        // 3. Logika Toggle Mode Anotasi
+        annotBtn.addEventListener('click', () => {
+            isAnnotMode = !isAnnotMode;
+            if (isAnnotMode) {
+                annotBtn.innerText = "📍 Mode Anotasi: ON";
+                annotBtn.className = "btn-toggle";
+                crosshairInfo.style.display = "block";
+            } else {
+                annotBtn.innerText = "📍 Mode Anotasi: OFF";
+                annotBtn.className = "btn-toggle off";
+                crosshairInfo.style.display = "none";
+            }
+        });
+
+        // 4. Menambahkan Anotasi ke koordinat klik
+        sphereVideo.addEventListener('click', (event) => {
+            if (!isAnnotMode) return; // Abaikan jika mode anotasi mati
+
+            // Ambil titik koordinat 3D dari hasil klik di permukaan bola video
+            const point = event.detail.intersection.point;
+            
+            // Tanya user teks apa yang mau dimasukkan
+            const textInput = prompt("Masukkan teks anotasi untuk lokasi ini:");
+            if (!textInput) return;
+
+            // Buat elemen entity baru
+            const annotEl = document.createElement('a-entity');
+            
+            // Kita tarik sedikit titiknya ke arah dalam kamera (dikali 0.9) agar teks 
+            // tidak tenggelam di permukaan bola video (menghindari z-fighting)
+            const posX = point.x * 0.9;
+            const posY = point.y * 0.9;
+            const posZ = point.z * 0.9;
+            annotEl.setAttribute('position', `${posX} ${posY} ${posZ}`);
+            
+            // Atur teksnya, ukurannya, dan warnanya
+            annotEl.setAttribute('text', `value: ${textInput}; align: center; width: 60; color: #FFD700; font: mozillavr;`);
+            
+            // Pastikan teks selalu menghadap ke kamera pengguna
+            annotEl.setAttribute('look-at', '#cam');
+
+            // Opsional: tambahkan ikon/titik kecil di atas/bawah teks
+            const marker = document.createElement('a-sphere');
+            marker.setAttribute('radius', '1');
+            marker.setAttribute('color', 'red');
+            marker.setAttribute('position', '0 -2 0');
+            annotEl.appendChild(marker);
+
+            // Masukkan ke dalam container scene
+            annotContainer.appendChild(annotEl);
+
+            // Otomatis matikan mode anotasi setelah 1 kali pasang (Opsional, hapus 4 baris ini jika ingin pasang banyak sekaligus)
+            isAnnotMode = false;
+            annotBtn.innerText = "📍 Mode Anotasi: OFF";
+            annotBtn.className = "btn-toggle off";
+            crosshairInfo.style.display = "none";
+        });
+
+        // 5. Bersihkan semua anotasi
+        clearAnnotBtn.addEventListener('click', () => {
+            annotContainer.innerHTML = ''; // Hapus semua anak elemen di dalam container
+        });
+    </script>
+</body>
+</html>
