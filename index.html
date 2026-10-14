@@ -11,7 +11,6 @@
     <style>
         body { margin: 0; overflow: hidden; font-family: sans-serif; }
         
-        /* Tombol Buka Menu (Muncul saat UI disembunyikan) */
         #open-menu-btn {
             position: absolute;
             top: 20px;
@@ -24,7 +23,7 @@
             border: 1px solid #444;
             cursor: pointer;
             font-weight: bold;
-            display: none; /* Sembunyi secara default */
+            display: none; 
             box-shadow: 0 4px 6px rgba(0,0,0,0.3);
         }
 
@@ -105,7 +104,7 @@
         
         <button id="clear-annot-btn" style="background: #6c757d;">Hapus Semua Anotasi</button>
         
-        <!-- Tambahan Tombol Sembunyikan Menu -->
+        <!-- Tombol Sembunyikan Menu -->
         <button id="hide-menu-btn" class="btn-hide">👁️ Sembunyikan Menu</button>
     </div>
 
@@ -121,15 +120,14 @@
         <!-- Video Sphere -->
         <a-videosphere id="sphere-video" src="#video-src" rotation="0 -90 0" class="clickable"></a-videosphere>
 
-        <!-- Kamera FPV -->
-        <a-entity id="cam" camera look-controls position="0 0 0"></a-entity>
+        <!-- Kamera FPV dengan FOV 60 (Mengurangi Distorsi/Fisheye) & Reverse Mouse Drag -->
+        <a-entity id="cam" camera="fov: 60" look-controls="reverseMouseDrag: true" position="0 0 0"></a-entity>
         
         <!-- Wadah untuk menyimpan semua anotasi -->
         <a-entity id="annotations-container"></a-entity>
     </a-scene>
 
     <script>
-        // DOM Elements
         const fileUpload = document.getElementById('file-upload');
         const urlInput = document.getElementById('url-input');
         const loadBtn = document.getElementById('load-btn');
@@ -141,14 +139,12 @@
         const annotContainer = document.getElementById('annotations-container');
         const crosshairInfo = document.getElementById('crosshair-info');
         
-        // Elemen Toggle Menu
         const uiContainer = document.getElementById('ui-container');
         const hideMenuBtn = document.getElementById('hide-menu-btn');
         const openMenuBtn = document.getElementById('open-menu-btn');
 
         let isAnnotMode = false;
 
-        // Logika Menyembunyikan dan Menampilkan Menu UI
         hideMenuBtn.addEventListener('click', () => {
             uiContainer.style.display = 'none';
             openMenuBtn.style.display = 'block';
@@ -159,7 +155,6 @@
             openMenuBtn.style.display = 'none';
         });
 
-        // 1. Logika Load Video
         loadBtn.addEventListener('click', () => {
             let videoUrl = '';
             if (fileUpload.files.length > 0) {
@@ -178,7 +173,6 @@
             });
         });
 
-        // 2. Logika Toggle Looping
         loopBtn.addEventListener('click', () => {
             videoElement.loop = !videoElement.loop;
             if (videoElement.loop) {
@@ -190,7 +184,6 @@
             }
         });
 
-        // 3. Logika Toggle Mode Anotasi
         annotBtn.addEventListener('click', () => {
             isAnnotMode = !isAnnotMode;
             if (isAnnotMode) {
@@ -204,7 +197,6 @@
             }
         });
 
-        // 4. Menambahkan Anotasi ke koordinat klik
         sphereVideo.addEventListener('click', (event) => {
             if (!isAnnotMode) return; 
 
@@ -235,7 +227,6 @@
             crosshairInfo.style.display = "none";
         });
 
-        // 5. Bersihkan semua anotasi
         clearAnnotBtn.addEventListener('click', () => {
             annotContainer.innerHTML = ''; 
         });
