@@ -120,8 +120,8 @@
         <!-- Video Sphere -->
         <a-videosphere id="sphere-video" src="#video-src" rotation="0 -90 0" class="clickable"></a-videosphere>
 
-        <!-- Kamera FPV dengan FOV 60 (Mengurangi Distorsi/Fisheye) & Reverse Mouse Drag -->
-        <a-entity id="cam" camera="fov: 60" look-controls="reverseMouseDrag: true" position="0 0 0"></a-entity>
+        <!-- Kamera FPV dengan FOV diturunkan ke 40 agar tidak stretch di layar lebar -->
+        <a-entity id="cam" camera="fov: 40" look-controls="reverseMouseDrag: true" position="0 0 0"></a-entity>
         
         <!-- Wadah untuk menyimpan semua anotasi -->
         <a-entity id="annotations-container"></a-entity>
