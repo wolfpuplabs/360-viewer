@@ -120,6 +120,7 @@
       <button id="create-share-link" type="button" class="block w-full max-w-full whitespace-normal break-words px-3 py-3 btn-purple rounded-lg text-sm font-medium leading-5">
         Create & copy link
       </button>
+      <textarea id="share-link-output" readonly rows="3" class="hidden mt-3 w-full min-w-0 rounded-lg border border-gray-700 bg-gray-900 p-2 text-xs text-gray-200 break-all" aria-label="Share link"></textarea>
       <p id="share-status" class="mt-2 text-xs text-gray-400 break-words" role="status"></p>
     </section>
 
@@ -402,17 +403,38 @@
       annotationToggle.classList.remove('ring-2', 'ring-yellow-400');
     });
     shareButton?.addEventListener('click', async () => {
-      if (!video.currentSrc && !video.src) {
-        shareStatus.textContent = 'Upload or open a video before creating a share link.';
-        return;
-      }
-      const link = makeShareUrl();
       try {
-        await navigator.clipboard.writeText(link);
-        shareStatus.textContent = 'Share link copied.';
-      } catch {
-        window.prompt('Copy this share link:', link);
-        shareStatus.textContent = 'Copy the link from the dialog.';
+        const videoUrl = video.currentSrc || video.src;
+        if (!videoUrl) {
+          shareStatus.textContent = 'Upload or open a video before creating a share link.';
+          return;
+        }
+        if (videoUrl.startsWith('blob:')) {
+          shareStatus.textContent = 'This video has no public URL yet. Upload it first, then create the share link.';
+          return;
+        }
+        const link = makeShareUrl();
+        const output = document.getElementById('share-link-output');
+        output.value = link;
+        output.classList.remove('hidden');
+        output.focus();
+        output.select();
+        try {
+          if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(link);
+            shareStatus.textContent = 'Link created and copied. If copying fails on your browser, the link is shown below.';
+            return;
+          }
+          const copied = document.execCommand('copy');
+          shareStatus.textContent = copied
+            ? 'Link created and copied.'
+            : 'Link created. Copy the link shown below.';
+        } catch {
+          shareStatus.textContent = 'Link created. Copy the link shown below.';
+        }
+      } catch (error) {
+        console.error('Share link error:', error);
+        shareStatus.textContent = 'Could not create link: ' + (error?.message || 'unknown error');
       }
     });
     if (sharedVideo) {
