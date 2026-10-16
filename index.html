@@ -151,56 +151,35 @@
       uploadStatus.textContent = 'Preparing upload...';
       uploadProgress.textContent = '0%';
 
-      const xhr = new XMLHttpRequest();
-      xhr.open('POST', `/api/upload?filename=${encodeURIComponent(selectedFile.name)}`);
-      xhr.setRequestHeader('Content-Type', selectedFile.type || 'application/octet-stream');
+      uploadBtn.disabled = true;
+      uploadStatus.textContent = 'Preparing secure upload...';
+      uploadProgress.textContent = '0%';
 
-      xhr.upload.addEventListener('progress', (event) => {
-        if (!event.lengthComputable) {
-          uploadStatus.textContent = 'Uploading video...';
-          return;
-        }
-        const percent = Math.round((event.loaded / event.total) * 100);
-        uploadProgress.textContent = percent + '%';
-        uploadStatus.textContent = 'Uploading video...';
-      });
+      try {
+        // Upload directly from the browser to Vercel Blob to avoid Vercel Function's request-size limit.
+        const { upload } = await import('https://esm.sh/@vercel/blob/client@2.5.0');
+        const blob = await upload(selectedFile.name, selectedFile, {
+          access: 'public',
+          handleUploadUrl: '/api/upload',
+          clientPayload: JSON.stringify({ contentType: selectedFile.type || 'application/octet-stream' }),
+        });
 
-      xhr.addEventListener('load', () => {
-        let result = {};
-        try { result = JSON.parse(xhr.responseText || '{}'); } catch {}
-        if (xhr.status < 200 || xhr.status >= 300 || !result.url) {
-          uploadStatus.textContent = result.error || `Upload failed (HTTP ${xhr.status})`;
-          uploadProgress.textContent = 'Failed';
-          uploadBtn.disabled = false;
-          return;
-        }
         uploadProgress.textContent = '100%';
         uploadStatus.textContent = 'Upload complete! Video loaded in viewer.';
-        console.log('File uploaded to:', result.url);
         const viewerVideo = document.getElementById('viewer-video');
-        viewerVideo.src = result.url;
+        viewerVideo.src = blob.url;
         viewerVideo.loop = true;
         viewerVideo.load();
         document.getElementById('empty-viewer').classList.add('hidden');
         document.getElementById('panorama-canvas').classList.remove('hidden');
         window.dispatchEvent(new CustomEvent('orbit-video-loaded'));
-        uploadBtn.disabled = false;
-      });
-
-      xhr.addEventListener('error', () => {
-        uploadStatus.textContent = 'Network error during upload. Check connection and deployment logs.';
+      } catch (error) {
+        console.error('Blob upload error:', error);
+        uploadStatus.textContent = error?.message || 'Upload failed. Check Vercel Blob settings.';
         uploadProgress.textContent = 'Failed';
+      } finally {
         uploadBtn.disabled = false;
-      });
-
-      xhr.addEventListener('abort', () => {
-        uploadStatus.textContent = 'Upload cancelled.';
-        uploadProgress.textContent = 'Cancelled';
-        uploadBtn.disabled = false;
-      });
-
-      uploadStatus.textContent = 'Uploading video...';
-      xhr.send(selectedFile);
+      }
     });
   </script>
   <script type="module">
