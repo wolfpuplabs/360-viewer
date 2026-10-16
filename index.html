@@ -138,34 +138,56 @@
       }
     });
 
-    uploadBtn.addEventListener('click', async () => {
+    uploadBtn.addEventListener('click', () => {
       if (!selectedFile) return;
 
       uploadBtn.disabled = true;
-      uploadStatus.textContent = 'Uploading...';
-      uploadProgress.textContent = '10%';
+      uploadStatus.textContent = 'Preparing upload...';
+      uploadProgress.textContent = '0%';
 
-      try {
-        // Panggil endpoint Vercel Serverless Function
-        const response = await fetch(`/api/upload?filename=${encodeURIComponent(selectedFile.name)}`, {
-          method: 'POST',
-          body: selectedFile,
-        });
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', `/api/upload?filename=${encodeURIComponent(selectedFile.name)}`);
+      xhr.setRequestHeader('Content-Type', selectedFile.type || 'application/octet-stream');
 
-        const newBlob = await response.json();
-        
+      xhr.upload.addEventListener('progress', (event) => {
+        if (!event.lengthComputable) {
+          uploadStatus.textContent = 'Uploading video...';
+          return;
+        }
+        const percent = Math.round((event.loaded / event.total) * 100);
+        uploadProgress.textContent = percent + '%';
+        uploadStatus.textContent = 'Uploading video...';
+      });
+
+      xhr.addEventListener('load', () => {
+        let result = {};
+        try { result = JSON.parse(xhr.responseText || '{}'); } catch {}
+        if (xhr.status < 200 || xhr.status >= 300 || !result.url) {
+          uploadStatus.textContent = result.error || `Upload failed (HTTP ${xhr.status})`;
+          uploadProgress.textContent = 'Failed';
+          uploadBtn.disabled = false;
+          return;
+        }
         uploadProgress.textContent = '100%';
         uploadStatus.textContent = 'Upload complete!';
-        console.log("File uploaded to:", newBlob.url);
-        
-        // Disini bisa tambahkan logika untuk memutar video dari newBlob.url
-        
-      } catch (error) {
-        console.error(error);
-        uploadStatus.textContent = 'Upload failed';
-      } finally {
+        console.log('File uploaded to:', result.url);
         uploadBtn.disabled = false;
-      }
+      });
+
+      xhr.addEventListener('error', () => {
+        uploadStatus.textContent = 'Network error during upload. Check connection and deployment logs.';
+        uploadProgress.textContent = 'Failed';
+        uploadBtn.disabled = false;
+      });
+
+      xhr.addEventListener('abort', () => {
+        uploadStatus.textContent = 'Upload cancelled.';
+        uploadProgress.textContent = 'Cancelled';
+        uploadBtn.disabled = false;
+      });
+
+      uploadStatus.textContent = 'Uploading video...';
+      xhr.send(selectedFile);
     });
   </script>
 </body>
