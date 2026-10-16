@@ -1,10 +1,4 @@
-import { put } from '@vercel/blob';
-
-export const config = {
-  api: {
-    bodyParser: false, // Wajib dinonaktifkan agar bisa menerima stream file besar (video)
-  },
-};
+import { handleUpload } from '@vercel/blob/client';
 
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
@@ -12,20 +6,22 @@ export default async function handler(req, res) {
   }
 
   try {
-    const filename = req.query.filename || 'video.mp4';
-    
-    // Upload stream langsung ke Vercel Blob
-    const blob = await put(filename, req, {
-      access: 'public',
-      addRandomSuffix: true,
+    const jsonResponse = await handleUpload({
+      body: req.body,
+      request: req,
+      onBeforeGenerateToken: async (pathname, clientPayload) => ({
+        allowedContentTypes: ['video/mp4', 'video/webm', 'application/octet-stream'],
+        addRandomSuffix: true,
+        tokenPayload: clientPayload || undefined,
+      }),
+      onUploadCompleted: async ({ blob, tokenPayload }) => {
+        console.log('Video upload completed:', blob.pathname);
+      },
     });
 
-    return res.status(200).json(blob);
+    return res.status(200).json(jsonResponse);
   } catch (error) {
-    console.error('Blob upload error:', error);
-    return res.status(500).json({
-      error: error?.message || 'Unknown Vercel Blob error',
-      code: error?.code || null,
-    });
+    console.error('Blob upload handler error:', error);
+    return res.status(400).json({ error: error?.message || 'Upload authorization failed' });
   }
 }
