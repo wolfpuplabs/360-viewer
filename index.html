@@ -157,7 +157,7 @@
 
       try {
         // Upload directly from the browser to Vercel Blob to avoid Vercel Function's request-size limit.
-        const { upload } = await import('https://esm.sh/@vercel/blob/client@2.5.0');
+        const { upload } = await import('https://esm.sh/@vercel/blob@2.5.0/client?bundle');
         const blob = await upload(selectedFile.name, selectedFile, {
           access: 'public',
           handleUploadUrl: '/api/upload',
