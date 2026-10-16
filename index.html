@@ -1,938 +1,172 @@
-
 <!DOCTYPE html>
-<html lang="id">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#0b0d12">
-  <title>Orbit — 360° Video Viewer</title>
-
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Orbit Viewer - 360 Video</title>
+  <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    :root {
-      color-scheme: dark;
-      --bg: #0b0d12;
-      --panel: #141821;
-      --line: #2a3040;
-      --text: #f5f7fb;
-      --muted: #9ba5b8;
-      --accent: #8b7cff;
-      --green: #58d6a5;
-    }
-
-    * { box-sizing: border-box; }
-
-    body {
-      margin: 0;
-      background: var(--bg);
-      color: var(--text);
-      font: 14px/1.5 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    }
-
-    button, input { font: inherit; }
-    button { cursor: pointer; }
-
-    header {
-      height: 68px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 16px;
-      padding: 0 24px;
-      border-bottom: 1px solid var(--line);
-      background: #10131a;
-    }
-
-    .brand {
-      display: flex;
-      align-items: center;
-      gap: 11px;
-      font-weight: 750;
-      font-size: 18px;
-      letter-spacing: -.5px;
-    }
-
-    .brand-icon {
-      display: grid;
-      place-items: center;
-      width: 35px;
-      height: 35px;
-      border-radius: 12px;
-      color: white;
-      background: linear-gradient(135deg, #9989ff, #6351d9);
-      font-size: 20px;
-    }
-
-    .subbrand { color: var(--muted); font-size: 12px; font-weight: 450; }
-
-    .layout {
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) 330px;
-      min-height: calc(100vh - 68px);
-    }
-
-    main { min-width: 0; padding: 22px; }
-
-    .viewer {
-      position: relative;
-      overflow: hidden;
-      min-height: 380px;
-      height: min(67vh, 680px);
-      border: 1px solid var(--line);
-      border-radius: 18px;
-      background: #07090d;
-    }
-
-    #canvasHost { position: absolute; inset: 0; }
-    #canvasHost canvas { width: 100%; height: 100%; display: block; }
-
-    .viewer-top {
-      position: absolute;
-      z-index: 2;
-      top: 16px;
-      left: 16px;
-      right: 16px;
-      display: flex;
-      justify-content: space-between;
-      gap: 10px;
-      pointer-events: none;
-    }
-
-    .pill {
-      padding: 7px 11px;
-      border: 1px solid #ffffff22;
-      border-radius: 99px;
-      background: #090b11bd;
-      color: #f3f4f8;
-      backdrop-filter: blur(12px);
-      font-size: 12px;
-    }
-
-    .viewer-bottom {
-      position: absolute;
-      z-index: 2;
-      left: 16px;
-      right: 16px;
-      bottom: 16px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      pointer-events: none;
-    }
-
-    .viewer-bottom button { pointer-events: auto; }
-
-    .empty-state {
-      position: absolute;
-      inset: 0;
-      display: grid;
-      place-content: center;
-      justify-items: center;
-      text-align: center;
-      padding: 25px;
-      color: var(--muted);
-      pointer-events: none;
-    }
-
-    .empty-icon { font-size: 46px; margin-bottom: 12px; }
-    .empty-state strong { color: var(--text); font-size: 18px; }
-    .empty-state p { max-width: 300px; margin: 7px 0; }
-
-    .controls {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 9px;
-      margin-top: 14px;
-    }
-
-    button {
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      padding: 10px 13px;
-      color: var(--text);
-      background: #191e29;
-      transition: .15s ease;
-    }
-
-    button:hover { border-color: #7062dc; }
-    button:disabled { opacity: .5; cursor: not-allowed; }
-
-    button.primary {
-      background: var(--accent);
-      border-color: var(--accent);
-      color: white;
-      font-weight: 650;
-    }
-
-    button.success {
-      background: #14372e;
-      border-color: #286b55;
-    }
-
-    button.small { padding: 7px 10px; font-size: 12px; }
-
-    .hint { color: var(--muted); font-size: 12px; margin: 12px 2px; }
-
-    aside {
-      border-left: 1px solid var(--line);
-      padding: 22px 18px;
-      background: #10131a;
-    }
-
-    .section {
-      padding-bottom: 21px;
-      margin-bottom: 21px;
-      border-bottom: 1px solid var(--line);
-    }
-
-    .section:last-child { border-bottom: 0; }
-
-    h2 { margin: 0 0 13px; font-size: 14px; }
-    .muted { color: var(--muted); }
-    .field { display: grid; gap: 7px; margin: 12px 0; }
-    .field label { font-size: 12px; color: var(--muted); }
-
-    input[type="text"], input[type="url"] {
-      width: 100%;
-      min-width: 0;
-      padding: 10px 11px;
-      border: 1px solid var(--line);
-      border-radius: 9px;
-      outline: none;
-      color: var(--text);
-      background: #0c0f15;
-    }
-
-    input:focus { border-color: var(--accent); }
-
-    input[type="file"] {
-      width: 100%;
-      color: var(--muted);
-      font-size: 12px;
-    }
-
-    .full { width: 100%; }
-    .status { margin-top: 10px; color: var(--muted); font-size: 12px; overflow-wrap: anywhere; }
-    .status.error { color: #ff8989; }
-    .status.ok { color: var(--green); }
-
-    .progress {
-      width: 100%;
-      height: 5px;
-      margin-top: 9px;
-      border-radius: 10px;
-      overflow: hidden;
-      background: #292e3a;
-    }
-
-    .progress > div {
-      height: 100%;
-      width: 0%;
-      background: var(--green);
-      transition: width .15s;
-    }
-
-    .annotation-list { display: grid; gap: 8px; }
-
-    .annotation {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 8px;
-      padding: 10px;
-      border: 1px solid var(--line);
-      border-radius: 10px;
-      background: #0c0f15;
-    }
-
-    .annotation strong { display: block; font-size: 13px; overflow-wrap: anywhere; }
-    .annotation small { display: block; margin-top: 3px; color: var(--muted); }
-    .annotation button { padding: 5px 8px; color: #ff9696; }
-
-    .annotation-form {
-      display: none;
-      margin-top: 12px;
-      padding: 12px;
-      border: 1px solid #4b427c;
-      border-radius: 11px;
-      background: #171526;
-    }
-
-    .annotation-form.visible { display: block; }
-
-    .note {
-      padding: 10px;
-      border-radius: 9px;
-      background: #1a2030;
-      color: var(--muted);
-      font-size: 12px;
-    }
-
-    footer {
-      padding: 18px 24px;
-      border-top: 1px solid var(--line);
-      color: var(--muted);
-      font-size: 12px;
-      text-align: center;
-    }
-
-    @media (max-width: 850px) {
-      header { padding: 0 15px; }
-      .layout { grid-template-columns: 1fr; }
-      main { padding: 14px; }
-      .viewer { height: 53vh; min-height: 300px; }
-      aside { border-left: 0; border-top: 1px solid var(--line); padding: 20px 15px; }
-    }
+    body { background-color: #0d0e15; color: #e2e8f0; font-family: sans-serif; }
+    .bg-panel { background-color: #151620; }
+    .bg-card { background-color: #0a0b10; }
+    .btn-purple { background-color: #8b5cf6; color: white; transition: background 0.2s; }
+    .btn-purple:hover { background-color: #7c3aed; }
+    .btn-dark { background-color: #1f2937; color: #d1d5db; border: 1px solid #374151; }
+    .btn-dark:hover { background-color: #374151; }
   </style>
 </head>
+<body class="h-screen flex overflow-hidden">
 
-<body>
-<header>
-  <div class="brand">
-    <div class="brand-icon">◎</div>
-    <div>
-      Orbit <span class="subbrand">360° VIDEO VIEWER</span>
-    </div>
-  </div>
-  <button id="shareTop" class="small">↗ Bagikan</button>
-</header>
-
-<div class="layout">
-  <main>
-    <div class="viewer">
-      <div id="canvasHost"></div>
-
-      <div class="empty-state" id="emptyState">
-        <div class="empty-icon">◉</div>
-        <strong>Jelajahi video 360° kamu</strong>
-        <p>Upload video atau masukkan URL video untuk memulai.</p>
+  <!-- Main Viewer Area -->
+  <main class="flex-1 flex flex-col p-4 md:p-6">
+    <div class="flex-1 rounded-2xl bg-card border border-gray-800 relative flex flex-col items-center justify-center">
+      
+      <!-- Top Bar inside Viewer -->
+      <div class="absolute top-4 left-4 right-4 flex justify-between items-center w-[calc(100%-2rem)]">
+        <div class="px-3 py-1 rounded-full bg-gray-900 border border-gray-700 text-xs font-semibold tracking-wider flex items-center gap-2">
+          <div class="w-2 h-2 rounded-full bg-gray-400"></div> ORBIT VIEWER
+        </div>
+        <div class="px-3 py-1 rounded-full bg-gray-900 border border-gray-700 text-xs text-gray-400">
+          No videos yet
+        </div>
       </div>
 
-      <div class="viewer-top">
-        <span class="pill">◉ ORBIT VIEWER</span>
-        <span class="pill" id="videoStatus">Belum ada video</span>
+      <!-- Center Content -->
+      <div class="text-center">
+        <div class="w-12 h-12 rounded-full border-4 border-gray-600 flex items-center justify-center mx-auto mb-4">
+          <div class="w-8 h-8 rounded-full bg-gray-500"></div>
+        </div>
+        <h2 class="text-2xl font-bold mb-2">Explore your 360° videos</h2>
+        <p class="text-gray-400 max-w-sm mx-auto">Upload a video or enter a video URL to get started.</p>
       </div>
 
-      <div class="viewer-bottom">
-        <span class="pill" id="viewHint">Geser untuk melihat sekeliling</span>
-        <button id="fullscreenBtn" class="small">⛶ Layar penuh</button>
+      <!-- Bottom Overlay inside Viewer -->
+      <div class="absolute bottom-4 left-4 right-4 flex justify-between items-end w-[calc(100%-2rem)]">
+        <div class="px-3 py-1.5 rounded-full bg-gray-900/80 border border-gray-700 text-xs text-gray-400">
+          Swipe to look around
+        </div>
+        <button class="px-3 py-1.5 rounded-lg bg-gray-900/80 border border-gray-700 text-xs text-gray-400 flex items-center gap-2 btn-dark">
+          [ ] Full screen
+        </button>
       </div>
     </div>
 
-    <div class="controls">
-      <button id="playBtn" class="primary">▶ Putar video</button>
-      <button id="resetBtn">⟳ Reset pandangan</button>
-      <button id="addAnnotationBtn">＋ Tambah anotasi</button>
-      <button id="shareBtn">↗ Salin link share</button>
+    <!-- Viewer Controls Bottom -->
+    <div class="mt-4 flex flex-wrap gap-2 items-center">
+      <button class="btn-purple px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2">
+        ▶ Play video
+      </button>
+      <button class="btn-dark px-4 py-2 rounded-lg text-sm font-medium">⟲ Reset view</button>
+      <button class="btn-dark px-4 py-2 rounded-lg text-sm font-medium">+ Add annotation</button>
+      <button class="btn-dark px-4 py-2 rounded-lg text-sm font-medium">↗ Copy share link</button>
     </div>
-
-    <p class="hint">
-      Klik dan geser untuk melihat sekeliling. Gunakan roda mouse untuk zoom.
-      Aktifkan “Tambah anotasi”, lalu klik titik pada video untuk menandainya.
-    </p>
-
-    <div class="note">
-      Tips: video 360° equirectangular biasanya memiliki rasio 2:1.
-      Jika video bukan format 360°, tampilan panorama bisa terlihat terdistorsi.
+    
+    <div class="mt-4 text-xs text-gray-500">
+      Click and pan to look around. Use the mouse wheel to zoom. Enable "Add annotation," then click a point in the video to mark it.
+      <div class="mt-2 p-2 bg-gray-800/50 rounded text-gray-400">
+        Tip: Equirectangular 360° videos typically have a 2:1 aspect ratio. If the video isn't in 360° format, the panorama may appear distorted.
+      </div>
     </div>
   </main>
 
-  <aside>
-    <section class="section">
-      <h2>01 / Video</h2>
-
-      <div class="field">
-        <label for="fileInput">Pilih file video</label>
-        <input id="fileInput" type="file" accept="video/mp4,video/webm,video/quicktime,video/*">
+  <!-- Right Sidebar -->
+  <aside class="w-80 bg-panel border-l border-gray-800 flex flex-col p-6 overflow-y-auto">
+    
+    <!-- 01 / Video -->
+    <section class="mb-8">
+      <h3 class="font-bold mb-4">01 / Video</h3>
+      <label class="block text-sm text-gray-400 mb-2">Select video file</label>
+      
+      <div class="flex items-center gap-2 mb-4">
+        <input type="file" id="video-upload" accept="video/mp4,video/webm" class="hidden" />
+        <button onclick="document.getElementById('video-upload').click()" class="btn-dark px-3 py-1.5 rounded-md text-xs font-medium">
+          Choose File
+        </button>
+        <span id="file-name" class="text-xs text-gray-500 truncate w-32">No file chosen</span>
       </div>
 
-      <button id="uploadBtn" class="primary full">Upload & buka video</button>
-      <div class="progress"><div id="progressBar"></div></div>
-      <div id="uploadStatus" class="status">Pilih video untuk memulai upload.</div>
+      <button id="upload-btn" class="w-full btn-purple py-2 rounded-lg text-sm font-medium mb-2 opacity-50 cursor-not-allowed" disabled>
+        Upload & open video
+      </button>
 
-      <div class="field">
-        <label for="titleInput">Judul video</label>
-        <input id="titleInput" type="text" placeholder="Video 360° saya">
+      <div class="flex justify-between text-xs text-gray-500 mb-4">
+        <span id="upload-status">Uploading video...</span>
+        <span id="upload-progress">0%</span>
       </div>
+
+      <label class="block text-sm text-gray-400 mb-2">Video title</label>
+      <input type="text" value="My 360° video" class="w-full bg-gray-900 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-purple-500" />
     </section>
 
-    <section class="section">
-      <h2>02 / Anotasi <span class="muted" id="annotationCount">(0)</span></h2>
-      <p class="muted">Tambahkan titik interaktif yang ikut tersimpan dalam link share.</p>
+    <hr class="border-gray-800 mb-8" />
 
-      <div id="annotationList" class="annotation-list">
-        <p class="muted">Belum ada anotasi.</p>
-      </div>
-
-      <div id="annotationForm" class="annotation-form">
-        <div class="field">
-          <label for="annotationTitle">Judul titik</label>
-          <input id="annotationTitle" type="text" placeholder="Contoh: Pintu masuk">
-        </div>
-        <div class="field">
-          <label for="annotationDescription">Deskripsi (opsional)</label>
-          <input id="annotationDescription" type="text" placeholder="Informasi tambahan">
-        </div>
-        <button id="saveAnnotationBtn" class="primary full">Simpan anotasi</button>
-        <button id="cancelAnnotationBtn" class="full" style="margin-top:7px">Batal</button>
-      </div>
+    <!-- 02 / Annotations -->
+    <section class="mb-8">
+      <h3 class="font-bold mb-4">02 / Annotations (0)</h3>
+      <p class="text-sm text-gray-400 mb-4">Add interactive dots that are also saved in the share link.</p>
+      <p class="text-sm text-gray-500">There are no annotations yet.</p>
     </section>
 
-    <section class="section">
-      <h2>03 / Bagikan</h2>
-      <p class="muted">Link menyertakan URL video, judul, dan posisi anotasi.</p>
-      <button id="shareSideBtn" class="primary full">Buat & salin link</button>
-      <div id="shareStatus" class="status"></div>
+    <hr class="border-gray-800 mb-8" />
+
+    <!-- 03 / Share -->
+    <section>
+      <h3 class="font-bold mb-4">03 / Share</h3>
+      <p class="text-sm text-gray-400 mb-4">The link includes the video URL, title, and annotation position.</p>
+      <button class="w-full btn-purple py-2 rounded-lg text-sm font-medium">
+        Create & copy link
+      </button>
     </section>
+
   </aside>
-</div>
 
-<footer>Orbit 360° Viewer · Video tetap tersimpan di sumber URL-nya.</footer>
-
-<video id="sourceVideo" playsinline crossorigin="anonymous" style="display:none"></video>
-
-<script type="module">
-import * as THREE from 'https://esm.sh/three@0.160.0';
-import { OrbitControls } from 'https://esm.sh/three@0.160.0/examples/jsm/controls/OrbitControls.js';
-
-const $ = id => document.getElementById(id);
-
-const state = {
-  videoUrl: '',
-  title: '',
-  annotations: [],
-  pendingPoint: null,
-  annotationMode: false,
-  sprites: []
-};
-
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0x07090d);
-
-const camera = new THREE.PerspectiveCamera(75, 1, 0.1, 2000);
-camera.position.set(0, 0, 0.1);
-
-const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
-renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-renderer.outputColorSpace = THREE.SRGBColorSpace;
-$('canvasHost').appendChild(renderer.domElement);
-
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.enableDamping = true;
-controls.dampingFactor = 0.06;
-controls.rotateSpeed = -0.25;
-controls.enablePan = false;
-controls.minDistance = 0.1;
-controls.maxDistance = 0.1;
-controls.target.set(0, 0, 0);
-
-const video = $('sourceVideo');
-video.loop = false;
-video.muted = false;
-video.preload = 'metadata';
-
-const sphereGeometry = new THREE.SphereGeometry(500, 96, 64);
-sphereGeometry.scale(-1, 1, 1);
-
-let videoTexture = null;
-let videoMesh = null;
-let raycaster = new THREE.Raycaster();
-const pointer = new THREE.Vector2();
-let annotationMaterial = null;
-
-function resize() {
-  const host = $('canvasHost');
-  const width = Math.max(1, host.clientWidth);
-  const height = Math.max(1, host.clientHeight);
-  camera.aspect = width / height;
-  camera.updateProjectionMatrix();
-  renderer.setSize(width, height, false);
-}
-window.addEventListener('resize', resize);
-resize();
-
-function animate() {
-  requestAnimationFrame(animate);
-  controls.update();
-  renderer.render(scene, camera);
-}
-animate();
-
-function setStatus(id, message, type = '') {
-  const el = $(id);
-  el.textContent = message;
-  el.className = 'status' + (type ? ' ' + type : '');
-}
-
-function showVideoStatus(message) {
-  $('videoStatus').textContent = message;
-}
-
-function clearSprites() {
-  for (const sprite of state.sprites) {
-    scene.remove(sprite);
-    sprite.material?.map?.dispose?.();
-    sprite.material?.dispose?.();
-  }
-  state.sprites = [];
-}
-
-function createLabelTexture(text) {
-  const canvas = document.createElement('canvas');
-  canvas.width = 512;
-  canvas.height = 128;
-  const ctx = canvas.getContext('2d');
-
-  ctx.fillStyle = 'rgba(17, 19, 31, 0.92)';
-  ctx.beginPath();
-  ctx.roundRect(8, 8, 496, 112, 28);
-  ctx.fill();
-
-  ctx.strokeStyle = '#a99aff';
-  ctx.lineWidth = 5;
-  ctx.beginPath();
-  ctx.roundRect(10, 10, 492, 108, 26);
-  ctx.stroke();
-
-  ctx.fillStyle = '#ffffff';
-  ctx.font = 'bold 34px system-ui, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-
-  let label = text || 'Anotasi';
-  while (ctx.measureText(label).width > 440 && label.length > 4) {
-    label = label.slice(0, -2) + '…';
-  }
-  ctx.fillText(label, 256, 64);
-
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
-}
-
-function pointFromAngles(yaw, pitch) {
-  const phi = THREE.MathUtils.degToRad(90 - pitch);
-  const theta = THREE.MathUtils.degToRad(yaw);
-  return new THREE.Vector3(
-    -500 * Math.sin(phi) * Math.cos(theta),
-     500 * Math.cos(phi),
-     500 * Math.sin(phi) * Math.sin(theta)
-  );
-}
-
-function addAnnotationSprite(annotation) {
-  const texture = createLabelTexture(annotation.title);
-  const material = new THREE.SpriteMaterial({
-    map: texture,
-    transparent: true,
-    depthTest: false,
-    depthWrite: false
-  });
-  const sprite = new THREE.Sprite(material);
-  sprite.position.copy(pointFromAngles(annotation.yaw, annotation.pitch));
-  sprite.scale.set(32, 8, 1);
-  sprite.renderOrder = 10;
-  sprite.userData.annotationId = annotation.id;
-  scene.add(sprite);
-  state.sprites.push(sprite);
-}
-
-function renderAnnotations() {
-  clearSprites();
-  for (const annotation of state.annotations) addAnnotationSprite(annotation);
-
-  $('annotationCount').textContent = `(${state.annotations.length})`;
-  const list = $('annotationList');
-  list.replaceChildren();
-
-  if (!state.annotations.length) {
-    const empty = document.createElement('p');
-    empty.className = 'muted';
-    empty.textContent = 'Belum ada anotasi.';
-    list.appendChild(empty);
-    return;
-  }
-
-  for (const item of state.annotations) {
-    const row = document.createElement('div');
-    row.className = 'annotation';
-
-    const info = document.createElement('div');
-    const name = document.createElement('strong');
-    name.textContent = item.title || 'Anotasi';
-    info.appendChild(name);
-
-    if (item.description) {
-      const description = document.createElement('small');
-      description.textContent = item.description;
-      info.appendChild(description);
-    }
-
-    const remove = document.createElement('button');
-    remove.textContent = '×';
-    remove.title = 'Hapus anotasi';
-    remove.addEventListener('click', () => {
-      state.annotations = state.annotations.filter(a => a.id !== item.id);
-      renderAnnotations();
-      updateShareUrl();
-    });
-
-    row.append(info, remove);
-    list.appendChild(row);
-  }
-}
-
-function updateShareUrl() {
-  const url = new URL(window.location.href);
-  url.searchParams.delete('video');
-  url.searchParams.delete('title');
-  url.searchParams.delete('annotations');
-
-  if (state.videoUrl) url.searchParams.set('video', state.videoUrl);
-  if (state.title) url.searchParams.set('title', state.title);
-
-  if (state.annotations.length) {
-    url.searchParams.set('annotations', JSON.stringify(state.annotations));
-  }
-
-  history.replaceState({}, '', url);
-  return url.toString();
-}
-
-async function loadVideo(url, title = '') {
-  if (!url) throw new Error('URL video belum diisi.');
-
-  let parsed;
-  try {
-    parsed = new URL(url, window.location.href);
-  } catch {
-    throw new Error('URL video tidak valid.');
-  }
-
-  if (!['http:', 'https:', 'blob:'].includes(parsed.protocol)) {
-    throw new Error('URL harus menggunakan HTTP atau HTTPS.');
-  }
-
-  showVideoStatus('Memuat video…');
-  $('emptyState').style.display = 'none';
-
-  video.pause();
-  video.removeAttribute('src');
-  video.load();
-
-  if (videoTexture) {
-    videoTexture.dispose();
-    videoTexture = null;
-  }
-
-  if (videoMesh) {
-    scene.remove(videoMesh);
-    videoMesh = null;
-  }
-
-  state.videoUrl = url;
-  state.title = title || 'Video 360°';
-  $('titleInput').value = state.title;
-
-  video.src = url;
-  video.load();
-
-  await new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      cleanup();
-      reject(new Error('Waktu tunggu video habis. Periksa URL dan akses videonya.'));
-    }, 20000);
-
-    function cleanup() {
-      clearTimeout(timeout);
-      video.removeEventListener('loadedmetadata', onReady);
-      video.removeEventListener('error', onError);
-    }
-    function onReady() { cleanup(); resolve(); }
-    function onError() {
-      cleanup();
-      reject(new Error('Video tidak dapat dibuka. Periksa URL, format, dan izin akses/CORS.'));
-    }
-
-    video.addEventListener('loadedmetadata', onReady, { once: true });
-    video.addEventListener('error', onError, { once: true });
-    if (video.readyState >= 1) { cleanup(); resolve(); }
-  });
-
-  videoTexture = new THREE.VideoTexture(video);
-  videoTexture.colorSpace = THREE.SRGBColorSpace;
-  videoTexture.minFilter = THREE.LinearFilter;
-  videoTexture.magFilter = THREE.LinearFilter;
-
-  const material = new THREE.MeshBasicMaterial({ map: videoTexture });
-  videoMesh = new THREE.Mesh(sphereGeometry, material);
-  scene.add(videoMesh);
-
-  showVideoStatus('Video siap');
-  $('emptyState').style.display = 'none';
-  controls.reset();
-  renderAnnotations();
-  updateShareUrl();
-}
-
-$('titleInput').addEventListener('change', () => {
-  state.title = $('titleInput').value.trim() || 'Video 360°';
-  updateShareUrl();
-});
-
-$('playBtn').addEventListener('click', async () => {
-  if (!state.videoUrl) {
-    setStatus('uploadStatus', 'Buka video terlebih dahulu.', 'error');
-    return;
-  }
-
-  try {
-    if (video.paused) {
-      await video.play();
-      $('playBtn').textContent = 'Ⅱ Jeda video';
-    } else {
-      video.pause();
-      $('playBtn').textContent = '▶ Putar video';
-    }
-  } catch {
-    setStatus('uploadStatus', 'Browser tidak dapat memutar video. Coba tekan Putar lagi.', 'error');
-  }
-});
-
-video.addEventListener('pause', () => $('playBtn').textContent = '▶ Putar video');
-video.addEventListener('play', () => $('playBtn').textContent = 'Ⅱ Jeda video');
-
-$('resetBtn').addEventListener('click', () => {
-  camera.position.set(0, 0, 0.1);
-  controls.target.set(0, 0, 0);
-  controls.update();
-});
-
-$('fullscreenBtn').addEventListener('click', async () => {
-  const viewer = document.querySelector('.viewer');
-  try {
-    if (!document.fullscreenElement) await viewer.requestFullscreen();
-    else await document.exitFullscreen();
-  } catch {
-    setStatus('uploadStatus', 'Mode layar penuh tidak tersedia di browser ini.', 'error');
-  }
-});
-
-$('addAnnotationBtn').addEventListener('click', () => {
-  if (!state.videoUrl) {
-    setStatus('uploadStatus', 'Buka video terlebih dahulu.', 'error');
-    return;
-  }
-
-  state.annotationMode = !state.annotationMode;
-  $('addAnnotationBtn').classList.toggle('success', state.annotationMode);
-  $('viewHint').textContent = state.annotationMode
-    ? 'Mode anotasi aktif — klik lokasi di video'
-    : 'Geser untuk melihat sekeliling';
-
-  if (state.annotationMode) {
-    setStatus('uploadStatus', 'Klik lokasi pada panorama untuk menambahkan anotasi.');
-  }
-});
-
-renderer.domElement.addEventListener('pointerdown', event => {
-  if (!state.annotationMode) return;
-
-  const rect = renderer.domElement.getBoundingClientRect();
-  pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-  pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-
-  raycaster.setFromCamera(pointer, camera);
-  const hit = raycaster.intersectObject(videoMesh || new THREE.Object3D(), false)[0];
-
-  if (!hit) {
-    // Raycast against an invisible spherical surface so the click
-    // still maps to a direction in the panorama.
-    const fallback = new THREE.Mesh(
-      sphereGeometry,
-      new THREE.MeshBasicMaterial({ side: THREE.BackSide })
-    );
-    const fallbackHit = raycaster.intersectObject(fallback, false)[0];
-    fallback.material.dispose();
-
-    if (!fallbackHit) return;
-    setPendingPoint(fallbackHit.point);
-    return;
-  }
-
-  setPendingPoint(hit.point);
-});
-
-function setPendingPoint(point) {
-  const direction = point.clone().normalize();
-  const yaw = THREE.MathUtils.radToDeg(Math.atan2(direction.z, -direction.x));
-  const pitch = THREE.MathUtils.radToDeg(Math.asin(direction.y));
-
-  state.pendingPoint = { yaw, pitch };
-  $('annotationForm').classList.add('visible');
-  $('annotationTitle').focus();
-}
-
-$('saveAnnotationBtn').addEventListener('click', () => {
-  if (!state.pendingPoint) return;
-
-  const title = $('annotationTitle').value.trim();
-  if (!title) {
-    $('annotationTitle').focus();
-    return;
-  }
-
-  state.annotations.push({
-    id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()),
-    title,
-    description: $('annotationDescription').value.trim(),
-    yaw: state.pendingPoint.yaw,
-    pitch: state.pendingPoint.pitch
-  });
-
-  state.pendingPoint = null;
-  state.annotationMode = false;
-  $('annotationForm').classList.remove('visible');
-  $('addAnnotationBtn').classList.remove('success');
-  $('viewHint').textContent = 'Geser untuk melihat sekeliling';
-  $('annotationTitle').value = '';
-  $('annotationDescription').value = '';
-
-  renderAnnotations();
-  updateShareUrl();
-  setStatus('uploadStatus', 'Anotasi disimpan.', 'ok');
-});
-
-$('cancelAnnotationBtn').addEventListener('click', () => {
-  state.pendingPoint = null;
-  $('annotationForm').classList.remove('visible');
-});
-
-async function copyShareLink() {
-  if (!state.videoUrl) {
-    setStatus('shareStatus', 'Buka video terlebih dahulu.', 'error');
-    return;
-  }
-
-  const link = updateShareUrl();
-
-  try {
-    await navigator.clipboard.writeText(link);
-    setStatus('shareStatus', 'Link share berhasil disalin!', 'ok');
-  } catch {
-    window.prompt('Salin link ini:', link);
-    setStatus('shareStatus', 'Salin link dari kotak yang muncul.');
-  }
-}
-
-$('shareBtn').addEventListener('click', copyShareLink);
-$('shareTop').addEventListener('click', copyShareLink);
-$('shareSideBtn').addEventListener('click', copyShareLink);
-
-// Restore a shared video and annotations from the URL.
-async function restoreFromUrl() {
-  const params = new URLSearchParams(window.location.search);
-  const sharedVideo = params.get('video');
-  const sharedTitle = params.get('title') || '';
-
-  try {
-    const raw = params.get('annotations');
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) {
-        state.annotations = parsed
-          .filter(a =>
-            a &&
-            typeof a.title === 'string' &&
-            Number.isFinite(Number(a.yaw)) &&
-            Number.isFinite(Number(a.pitch))
-          )
-          .slice(0, 100)
-          .map(a => ({
-            id: String(a.id || Math.random()),
-            title: a.title.slice(0, 150),
-            description: String(a.description || '').slice(0, 500),
-            yaw: Number(a.yaw),
-            pitch: Number(a.pitch)
-          }));
-      }
-    }
-    renderAnnotations();
-  } catch {
-    state.annotations = [];
-    renderAnnotations();
-  }
-
-  if (sharedVideo) {
-    $('titleInput').value = sharedTitle;
-    try {
-      await loadVideo(sharedVideo, sharedTitle);
-    } catch (error) {
-      $('emptyState').style.display = 'grid';
-      showVideoStatus('Video tidak tersedia');
-      setStatus('uploadStatus', error.message, 'error');
-    }
-  }
-}
-
-// Vercel Blob direct upload. /api/upload must use handleUpload.
-$('uploadBtn').addEventListener('click', async () => {
-  const file = $('fileInput').files?.[0];
-  if (!file) {
-    setStatus('uploadStatus', 'Pilih file video terlebih dahulu.', 'error');
-    return;
-  }
-
-  if (!file.type.startsWith('video/')) {
-    setStatus('uploadStatus', 'File yang dipilih harus berupa video.', 'error');
-    return;
-  }
-
-  const button = $('uploadBtn');
-  button.disabled = true;
-  $('progressBar').style.width = '0%';
-  setStatus('uploadStatus', 'Menyiapkan upload…');
-
-  try {
-    // Dynamic import errors will be shown explicitly rather than leaving
-    // the progress bar silently stuck at 0%.
-    const { upload } = await import('https://esm.sh/@vercel/blob@2.5.0/client');
-
-    setStatus('uploadStatus', 'Mengunggah video ke Vercel Blob…');
-
-    const blob = await upload(file.name, file, {
-      access: 'public',
-      handleUploadUrl: '/api/upload',
-      multipart: true,
-      onUploadProgress(progress) {
-        const percentage = Math.max(0, Math.min(100, progress.percentage || 0));
-        $('progressBar').style.width = percentage + '%';
-        setStatus('uploadStatus', `Mengunggah video… ${Math.round(percentage)}%`);
+  <script>
+    const fileInput = document.getElementById('video-upload');
+    const fileNameDisplay = document.getElementById('file-name');
+    const uploadBtn = document.getElementById('upload-btn');
+    const uploadStatus = document.getElementById('upload-status');
+    const uploadProgress = document.getElementById('upload-progress');
+
+    let selectedFile = null;
+
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length > 0) {
+        selectedFile = e.target.files[0];
+        fileNameDisplay.textContent = selectedFile.name;
+        uploadBtn.disabled = false;
+        uploadBtn.classList.remove('opacity-50', 'cursor-not-allowed');
       }
     });
 
-    if (!blob?.url) throw new Error('Upload selesai tetapi URL publik tidak diterima.');
+    uploadBtn.addEventListener('click', async () => {
+      if (!selectedFile) return;
 
-    $('urlInput').value = blob.url;
-    $('titleInput').value = file.name.replace(/\.[^.]+$/, '');
+      uploadBtn.disabled = true;
+      uploadStatus.textContent = 'Uploading...';
+      uploadProgress.textContent = '10%';
 
-    await loadVideo(blob.url, $('titleInput').value);
-    setStatus('uploadStatus', 'Upload berhasil! Video siap dibagikan.', 'ok');
-    $('progressBar').style.width = '100%';
-  } catch (error) {
-    console.error('Orbit upload error:', error);
-    setStatus(
-      'uploadStatus',
-      'Upload gagal: ' + (error?.message || 'Kesalahan tidak diketahui') +
-      '. Periksa /api/upload, deployment terbaru, dan koneksi internet.',
-      'error'
-    );
-  } finally {
-    button.disabled = false;
-  }
-});
+      try {
+        // Panggil endpoint Vercel Serverless Function
+        const response = await fetch(`/api/upload?filename=${encodeURIComponent(selectedFile.name)}`, {
+          method: 'POST',
+          body: selectedFile,
+        });
 
-restoreFromUrl();
-</script>
+        const newBlob = await response.json();
+        
+        uploadProgress.textContent = '100%';
+        uploadStatus.textContent = 'Upload complete!';
+        console.log("File uploaded to:", newBlob.url);
+        
+        // Disini bisa tambahkan logika untuk memutar video dari newBlob.url
+        
+      } catch (error) {
+        console.error(error);
+        uploadStatus.textContent = 'Upload failed';
+      } finally {
+        uploadBtn.disabled = false;
+      }
+    });
+  </script>
 </body>
 </html>
