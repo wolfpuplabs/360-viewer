@@ -201,6 +201,13 @@
     geometry.scale(-1, 1, 1);
     const texture = new THREE.VideoTexture(video);
     texture.colorSpace = THREE.SRGBColorSpace;
+    // Ensure the WebGL video texture refreshes after media data becomes available.
+    video.addEventListener('loadeddata', () => { texture.needsUpdate = true; });
+    video.addEventListener('playing', () => { texture.needsUpdate = true; });
+    video.addEventListener('error', () => {
+      const mediaError = video.error;
+      document.getElementById('upload-status').textContent = 'Video playback error' + (mediaError ? ` (${mediaError.code})` : '') + '. Check the uploaded video URL/format.';
+    });
     scene.add(new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ map: texture })));
 
     const controls = new OrbitControls(camera, renderer.domElement);
