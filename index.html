@@ -114,13 +114,13 @@
     <hr class="border-gray-800 mb-8" />
 
     <!-- 03 / Share -->
-    <section>
+    <section class="min-w-0 w-full">
       <h3 class="font-bold mb-4">03 / Share</h3>
       <p class="text-sm text-gray-400 mb-4">The link includes the video URL, title, and annotation position.</p>
-      <button id="create-share-link" class="w-full btn-purple py-2 rounded-lg text-sm font-medium">
+      <button id="create-share-link" type="button" class="block w-full max-w-full whitespace-normal break-words px-3 py-3 btn-purple rounded-lg text-sm font-medium leading-5">
         Create & copy link
       </button>
-      <p id="share-status" class="mt-2 text-xs text-gray-400" role="status"></p>
+      <p id="share-status" class="mt-2 text-xs text-gray-400 break-words" role="status"></p>
     </section>
 
   </aside>
@@ -331,7 +331,37 @@
           new THREE.MeshBasicMaterial({ color: 0xffd54a, depthTest: false })
         );
         dot.position.copy(position);
+        dot.renderOrder = 20;
         annotationGroup.add(dot);
+
+        // Render the annotation text as a camera-facing sprite at the same panorama point.
+        const labelCanvas = document.createElement('canvas');
+        const ctx = labelCanvas.getContext('2d');
+        const fontSize = 30;
+        ctx.font = `600 ${fontSize}px Arial, sans-serif`;
+        const textWidth = Math.ceil(ctx.measureText(item.label).width);
+        labelCanvas.width = Math.min(1200, Math.max(180, textWidth + 36));
+        labelCanvas.height = 66;
+        ctx.font = `600 ${fontSize}px Arial, sans-serif`;
+        ctx.fillStyle = 'rgba(17, 24, 39, 0.96)';
+        ctx.strokeStyle = '#facc15';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.roundRect(2, 2, labelCanvas.width - 4, labelCanvas.height - 4, 12);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = '#ffffff';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(item.label, 18, labelCanvas.height / 2, labelCanvas.width - 36);
+        const labelTexture = new THREE.CanvasTexture(labelCanvas);
+        labelTexture.colorSpace = THREE.SRGBColorSpace;
+        const label = new THREE.Sprite(new THREE.SpriteMaterial({
+          map: labelTexture, transparent: true, depthTest: false, depthWrite: false
+        }));
+        label.position.copy(position.clone().multiplyScalar(1.025));
+        label.scale.set(Math.min(120, Math.max(38, labelCanvas.width / 8)), 22, 1);
+        label.renderOrder = 21;
+        annotationGroup.add(label);
       });
     }
     function makeShareUrl() {
