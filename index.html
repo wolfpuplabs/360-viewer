@@ -335,6 +335,31 @@
         );
         dot.position.copy(position);
         annotationGroup.add(dot);
+
+        // Render the annotation text as a canvas-backed sprite, so the label is visible in the panorama.
+        const labelCanvas = document.createElement('canvas');
+        const labelContext = labelCanvas.getContext('2d');
+        if (labelContext) {
+          labelContext.font = 'bold 28px sans-serif';
+          const textWidth = Math.ceil(labelContext.measureText(item.label).width);
+          labelCanvas.width = Math.min(1024, textWidth + 32);
+          labelCanvas.height = 56;
+          labelContext.font = 'bold 28px sans-serif';
+          labelContext.fillStyle = 'rgba(10, 11, 16, 0.88)';
+          labelContext.fillRect(0, 0, labelCanvas.width, labelCanvas.height);
+          labelContext.strokeStyle = '#ffd54a';
+          labelContext.lineWidth = 3;
+          labelContext.strokeRect(1.5, 1.5, labelCanvas.width - 3, labelCanvas.height - 3);
+          labelContext.fillStyle = '#ffffff';
+          labelContext.textBaseline = 'middle';
+          labelContext.fillText(item.label, 16, labelCanvas.height / 2, labelCanvas.width - 32);
+          const labelTexture = new THREE.CanvasTexture(labelCanvas);
+          const labelSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: labelTexture, depthTest: false, transparent: true }));
+          labelSprite.position.copy(position);
+          labelSprite.scale.set(Math.max(24, labelCanvas.width * 0.32), 18, 1);
+          labelSprite.renderOrder = 10;
+          annotationGroup.add(labelSprite);
+        }
       });
     }
     function makeShareUrl() {
