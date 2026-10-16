@@ -262,12 +262,150 @@
 
     const params = new URLSearchParams(location.search);
     const sharedVideo = params.get('video');
+    const titleInput = document.querySelector('input[type="text"]');
+    const annotationToggle = document.getElementById('annotation-toggle');
+    const annotationList = document.getElementById('annotation-list');
+    const annotationHeading = document.getElementById('annotation-heading');
+    const shareButton = document.getElementById('create-share-link');
+    const shareStatus = document.getElementById('share-status');
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    const annotationGroup = new THREE.Group();
+    scene.add(annotationGroup);
+    let annotations = [];
+    let addingAnnotation = false;
+    let pointerStart = null;
+
+    function encodeJson(value) {
+      return btoa(unescape(encodeURIComponent(JSON.stringify(value))))
+        .replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/g, '');
+    }
+    function decodeJson(value) {
+      const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+      return JSON.parse(decodeURIComponent(escape(atob(normalized + '='.repeat((4 - normalized.length % 4) % 4)))));
+    }
+    function renderAnnotationList() {
+      annotationHeading.textContent = `02 / Annotations (${annotations.length})`;
+      annotationList.replaceChildren();
+      if (!annotations.length) {
+        const empty = document.createElement('li');
+        empty.className = 'text-gray-500';
+        empty.textContent = 'There are no annotations yet.';
+        annotationList.appendChild(empty);
+        return;
+      }
+      annotations.forEach((item, index) => {
+        const li = document.createElement('li');
+        li.className = 'flex items-center justify-between gap-2 rounded bg-gray-800 px-2 py-2';
+        const label = document.createElement('span');
+        label.className = 'min-w-0 break-words';
+        label.textContent = item.label;
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'text-gray-400 hover:text-white';
+        remove.textContent = '×';
+        remove.setAttribute('aria-label', 'Remove annotation');
+        remove.addEventListener('click', () => {
+          annotations.splice(index, 1);
+          renderAnnotationMeshes();
+          renderAnnotationList();
+        });
+        li.append(label, remove);
+        annotationList.appendChild(li);
+      });
+    }
+    function renderAnnotationMeshes() {
+      while (annotationGroup.children.length) {
+        const child = annotationGroup.children[0];
+        annotationGroup.remove(child);
+        child.traverse?.(obj => {
+          obj.geometry?.dispose?.();
+          if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose?.());
+          else obj.material?.dispose?.();
+        });
+      }
+      annotations.forEach(item => {
+        const position = new THREE.Vector3(item.x, item.y, item.z).normalize().multiplyScalar(460);
+        const dot = new THREE.Mesh(
+          new THREE.SphereGeometry(4, 12, 8),
+          new THREE.MeshBasicMaterial({ color: 0xffd54a, depthTest: false })
+        );
+        dot.position.copy(position);
+        annotationGroup.add(dot);
+      });
+    }
+    function makeShareUrl() {
+      const url = new URL(location.href);
+      url.search = '';
+      const videoUrl = video.currentSrc || video.src;
+      if (videoUrl) url.searchParams.set('video', videoUrl);
+      url.searchParams.set('title', titleInput?.value || 'My 360° video');
+      url.searchParams.set('annotations', encodeJson(annotations));
+      return url.toString();
+    }
+    annotationToggle?.addEventListener('click', () => {
+      addingAnnotation = !addingAnnotation;
+      annotationToggle.textContent = addingAnnotation ? 'Click video to annotate…' : '+ Add annotation';
+      annotationToggle.classList.toggle('ring-2', addingAnnotation);
+      annotationToggle.classList.toggle('ring-yellow-400', addingAnnotation);
+    });
+    canvas.addEventListener('pointerdown', event => {
+      pointerStart = { x: event.clientX, y: event.clientY };
+    });
+    canvas.addEventListener('pointerup', event => {
+      if (!addingAnnotation || !pointerStart || !video.src) { pointerStart = null; return; }
+      const moved = Math.hypot(event.clientX - pointerStart.x, event.clientY - pointerStart.y);
+      pointerStart = null;
+      if (moved > 6) return;
+      const rect = canvas.getBoundingClientRect();
+      pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+      const direction = raycaster.ray.direction.clone().normalize();
+      const label = window.prompt('Annotation text:');
+      if (!label || !label.trim()) return;
+      annotations.push({ x: direction.x, y: direction.y, z: direction.z, label: label.trim() });
+      renderAnnotationMeshes();
+      renderAnnotationList();
+      addingAnnotation = false;
+      annotationToggle.textContent = '+ Add annotation';
+      annotationToggle.classList.remove('ring-2', 'ring-yellow-400');
+    });
+    shareButton?.addEventListener('click', async () => {
+      if (!video.currentSrc && !video.src) {
+        shareStatus.textContent = 'Upload or open a video before creating a share link.';
+        return;
+      }
+      const link = makeShareUrl();
+      try {
+        await navigator.clipboard.writeText(link);
+        shareStatus.textContent = 'Share link copied.';
+      } catch {
+        window.prompt('Copy this share link:', link);
+        shareStatus.textContent = 'Copy the link from the dialog.';
+      }
+    });
     if (sharedVideo) {
       video.src = sharedVideo;
       video.load();
       document.getElementById('empty-viewer').classList.add('hidden');
       canvas.classList.remove('hidden');
       window.dispatchEvent(new CustomEvent('orbit-video-loaded'));
+    }
+    const sharedTitle = params.get('title');
+    if (sharedTitle && titleInput) titleInput.value = sharedTitle;
+    const sharedAnnotations = params.get('annotations');
+    if (sharedAnnotations) {
+      try {
+        const parsed = decodeJson(sharedAnnotations);
+        if (Array.isArray(parsed)) annotations = parsed.filter(a =>
+          a && Number.isFinite(a.x) && Number.isFinite(a.y) && Number.isFinite(a.z) && typeof a.label === 'string'
+        ).slice(0, 100);
+      } catch (error) {
+        console.warn('Could not read shared annotations:', error);
+      }
+      renderAnnotationMeshes();
+      renderAnnotationList();
     }
 
     function animate() {
