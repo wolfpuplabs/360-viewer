@@ -197,13 +197,13 @@
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2.5));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     const geometry = new THREE.SphereGeometry(500, 64, 40);
-    // Flip the sphere's X axis and render its inward-facing surface so equirectangular footage is not mirrored.
-    geometry.scale(-1, 1, 1);
+    // Keep the sphere's original winding and render its inside surface. This avoids black frames
+    // caused by flipping geometry while also using BackSide/FrontSide inconsistently.
     const texture = new THREE.VideoTexture(video);
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.minFilter = THREE.LinearFilter;
     texture.magFilter = THREE.LinearFilter;
-    const panoramaSphere = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ map: texture, side: THREE.FrontSide }));
+    const panoramaSphere = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ map: texture, side: THREE.BackSide }));
     scene.add(panoramaSphere);
     video.loop = true;
     video.muted = false;
