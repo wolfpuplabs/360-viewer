@@ -347,10 +347,9 @@
         ctx.fillStyle = 'rgba(17, 24, 39, 0.96)';
         ctx.strokeStyle = '#facc15';
         ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.roundRect(2, 2, labelCanvas.width - 4, labelCanvas.height - 4, 12);
-        ctx.fill();
-        ctx.stroke();
+        // Use basic canvas primitives for compatibility across browsers.
+        ctx.fillRect(2, 2, labelCanvas.width - 4, labelCanvas.height - 4);
+        ctx.strokeRect(2, 2, labelCanvas.width - 4, labelCanvas.height - 4);
         ctx.fillStyle = '#ffffff';
         ctx.textBaseline = 'middle';
         ctx.fillText(item.label, 18, labelCanvas.height / 2, labelCanvas.width - 36);
@@ -360,16 +359,20 @@
           map: labelTexture, transparent: true, depthTest: false, depthWrite: false
         }));
         label.position.copy(position.clone().multiplyScalar(1.025));
-        label.scale.set(Math.min(120, Math.max(38, labelCanvas.width / 8)), 22, 1);
+        label.scale.set(Math.min(150, Math.max(55, labelCanvas.width / 6)), 26, 1);
         label.renderOrder = 21;
         annotationGroup.add(label);
       });
     }
     function makeShareUrl() {
-      const url = new URL(location.href);
-      url.search = '';
       const videoUrl = video.currentSrc || video.src;
-      if (videoUrl) url.searchParams.set('video', videoUrl);
+      if (!videoUrl || videoUrl.startsWith('blob:')) {
+        throw new Error('Video URL is not publicly shareable yet. Upload it first.');
+      }
+      const url = new URL(window.location.href);
+      url.search = '';
+      url.hash = '';
+      url.searchParams.set('video', videoUrl);
       url.searchParams.set('title', titleInput?.value || 'My 360° video');
       url.searchParams.set('annotations', encodeJson(annotations));
       return url.toString();
