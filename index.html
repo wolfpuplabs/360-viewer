@@ -219,11 +219,13 @@
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2.5));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     const geometry = new THREE.SphereGeometry(500, 64, 40);
+    // Flip the sphere's X axis and render its inward-facing surface so equirectangular footage is not mirrored.
+    geometry.scale(-1, 1, 1);
     const texture = new THREE.VideoTexture(video);
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.minFilter = THREE.LinearFilter;
     texture.magFilter = THREE.LinearFilter;
-    const panoramaSphere = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ map: texture, side: THREE.BackSide }));
+    const panoramaSphere = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ map: texture, side: THREE.FrontSide }));
     scene.add(panoramaSphere);
     video.loop = true;
     video.muted = false;
@@ -272,7 +274,7 @@
     controls.enablePan = false;
     controls.enableDamping = true;
     controls.dampingFactor = 0.06;
-    controls.rotateSpeed = -0.25;
+    controls.rotateSpeed = 0.25;
     controls.minDistance = 0.1;
     controls.maxDistance = 0.1;
     controls.minPolarAngle = 0.05;
