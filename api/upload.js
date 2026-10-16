@@ -1,3 +1,4 @@
+
 import { handleUpload } from '@vercel/blob/client';
 
 export default async function handler(request, response) {
@@ -7,32 +8,32 @@ export default async function handler(request, response) {
   }
 
   try {
-    const jsonResponse = await handleUpload({
-      body: request.body,
+    const result = await handleUpload({
       request,
-      onBeforeGenerateToken: async (_pathname, clientPayload) => {
-        let contentType = '';
-        try {
-          if (clientPayload) contentType = JSON.parse(clientPayload).contentType || '';
-        } catch {
-          throw new Error('Invalid upload metadata');
-        }
-        if (contentType && !['video/mp4', 'video/webm', 'video/quicktime'].includes(contentType)) {
-          throw new Error('Only MP4, WebM, and QuickTime videos are allowed');
-        }
+      body: request.body,
+
+      onBeforeGenerateToken: async (pathname, clientPayload) => {
         return {
-          allowedContentTypes: ['video/mp4', 'video/webm', 'video/quicktime'],
+          allowedContentTypes: [
+            'video/mp4',
+            'video/webm',
+            'video/quicktime'
+          ],
           maximumSizeInBytes: 500 * 1024 * 1024,
-          addRandomSuffix: true,
+          addRandomSuffix: true
         };
       },
+
       onUploadCompleted: async ({ blob }) => {
-        console.log('Video uploaded:', blob.pathname);
-      },
+        console.log('Video uploaded:', blob.pathname, blob.url);
+      }
     });
-    return response.status(200).json(jsonResponse);
+
+    return response.status(200).json(result);
   } catch (error) {
     console.error('Blob upload error:', error);
-    return response.status(400).json({ error: error?.message || 'Upload failed' });
+    return response.status(400).json({
+      error: error.message || 'Upload failed'
+    });
   }
 }
