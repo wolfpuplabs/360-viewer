@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b1020">
+  <meta name="description" content="Orbit 360° — jelajahi dan bagikan pengalaman video 360 derajat.">
+  <title>Orbit — 360° Video Viewer</title>
+  <link rel="preconnect" href="https://cdnjs.cloudflare.com">
+  <link rel="preconnect" href="https://cdn.jsdelivr.net">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/105/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/panolens@0.12.1/build/panolens.min.js"></script>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0b1020;
+      --glass: rgba(16, 23, 42, .76);
+      --line: rgba(255,255,255,.13);
+      --muted: #9aa8c2;
+      --text: #f7f9ff;
+      --accent: #9bf3d5;
+      --shadow: 0 24px 70px rgba(0,0,0,.35);
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; width: 100%; height: 100%; overflow: hidden;
+      background: var(--bg); color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    button, input { font: inherit; }
+    button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+    button:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+    #pano-container {
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse at 55% 45%, #253354 0%, #10182b 48%, #080c17 100%);
+    }
+    #pano-container canvas { display: block; }
+    .ambient {
+      position: absolute; inset: 0; pointer-events: none; z-index: 1;
+      background: linear-gradient(180deg,rgba(5,8,18,.48),transparent 27%,transparent 68%,rgba(5,8,18,.45));
+    }
+    .glass {
+      background: var(--glass); border: 1px solid var(--line); box-shadow: var(--shadow);
+      backdrop-filter: blur(22px); -webkit-backdrop-filter: blur(22px);
+    }
+    .topbar {
+      position: absolute; z-index: 5; top: 0; left: 0; right: 0;
+      padding: calc(18px + env(safe-area-inset-top)) 22px 14px;
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      pointer-events: none;
+    }
+    .brand, .top-actions { display: flex; align-items: center; gap: 10px; pointer-events: auto; }
+    .brand-mark {
+      width: 38px; height: 38px; border: 1px solid var(--line); border-radius: 13px;
+      background: rgba(255,255,255,.1); display: grid; place-items: center; font-size: 20px;
+    }
+    .brand-name { font-size: 15px; font-weight: 800; letter-spacing: .1em; }
+    .brand-sub { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .pill {
+      display: flex; align-items: center; gap: 7px; border: 1px solid var(--line);
+      border-radius: 999px; padding: 9px 13px; background: rgba(13,19,35,.55);
+      color: #dce5f8; font-size: 12px;
+    }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 12px var(--accent); }
+    .icon-btn {
+      width: 42px; height: 42px; display: grid; place-items: center; border-radius: 14px;
+      border: 1px solid var(--line); background: rgba(15,22,39,.72); color: white; font-size: 18px;
+      transition: background .2s, transform .2s;
+    }
+    .icon-btn:hover { background: rgba(255,255,255,.15); transform: translateY(-1px); }
+    .primary {
+      background: var(--accent); border: 0; color: #0b1820; font-weight: 750;
+      border-radius: 14px; padding: 12px 16px; display: inline-flex; align-items: center;
+      justify-content: center; gap: 9px; transition: transform .2s, filter .2s;
+    }
+    .primary:hover { filter: brightness(1.05); transform: translateY(-1px); }
+    .secondary { background: rgba(255,255,255,.07); border: 1px solid var(--line); color: white; border-radius: 13px; padding: 10px 13px; }
+    .secondary.active { color: var(--accent); border-color: rgba(155,243,213,.45); background: rgba(155,243,213,.09); }
+    .panel {
+      position: absolute; z-index: 6; top: 88px; left: 22px;
+      width: min(350px, calc(100vw - 44px)); max-height: calc(100dvh - 170px); overflow: auto;
+      border-radius: 24px; padding: 20px; transition: transform .28s ease, opacity .25s ease;
+      scrollbar-width: thin; scrollbar-color: #45516a transparent;
+    }
+    .panel.closed { transform: translateX(calc(-100% - 35px)); opacity: 0; pointer-events: none; }
+    .panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 18px; }
+    .eyebrow { font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--accent); font-weight: 750; }
+    .panel h1 { font-size: 23px; line-height: 1.12; letter-spacing: -.04em; margin: 7px 0; }
+    .subcopy { font-size: 12px; color: var(--muted); line-height: 1.55; margin: 0; }
+    .section { padding-top: 16px; margin-top: 16px; border-top: 1px solid var(--line); }
+    .section-title { font-size: 12px; font-weight: 700; margin-bottom: 10px; display: flex; align-items: center; justify-content: space-between; }
+    .section-title span { font-size: 11px; color: var(--muted); font-weight: 500; }
+    .field { display: block; width: 100%; min-width: 0; border: 1px solid var(--line); border-radius: 13px; padding: 12px 13px; background: rgba(3,8,20,.48); color: white; font-size: 13px; }
+    .field::placeholder { color: #74819a; }
+    .field-label { font-size: 11px; color: #c2cce0; display: block; margin: 0 0 7px; }
+    .stack { display: grid; gap: 9px; }
+    .filepick {
+      display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%;
+      border: 1px dashed rgba(255,255,255,.25); border-radius: 13px; padding: 13px;
+      background: rgba(255,255,255,.035); color: #dbe4f8; font-size: 12px; cursor: pointer;
+    }
+    .filepick input { display: none; }
+    .hint { font-size: 10px; line-height: 1.5; color: var(--muted); margin: 8px 0 0; }
+    .toggle-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 12px; color: #e1e8f7; margin-top: 12px; }
+    .switch { appearance: none; width: 36px; height: 21px; border-radius: 99px; background: #46516a; position: relative; flex: none; transition: background .2s; cursor: pointer; }
+    .switch:before { content: ""; position: absolute; width: 15px; height: 15px; top: 3px; left: 3px; border-radius: 50%; background: #fff; transition: transform .2s; }
+    .switch:checked { background: #60d9b2; }
+    .switch:checked:before { transform: translateX(15px); background: #09221b; }
+    .bottom-dock {
+      position: absolute; z-index: 5; left: 50%; bottom: calc(22px + env(safe-area-inset-bottom));
+      transform: translateX(-50%); width: min(590px, calc(100vw - 32px)); padding: 12px 14px;
+      border-radius: 22px; display: flex; align-items: center; gap: 12px;
+    }
+    .dock-main { flex: 1; min-width: 0; }
+    .dock-title { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .dock-caption { font-size: 11px; color: var(--muted); margin-top: 4px; }
+    .dock-actions { display: flex; align-items: center; gap: 7px; }
+    .dock-actions .icon-btn { width: 40px; height: 40px; }
+    .tip {
+      position: absolute; z-index: 3; bottom: 105px; left: 50%; transform: translateX(-50%);
+      padding: 9px 14px; border-radius: 99px; background: rgba(10,15,28,.58);
+      border: 1px solid rgba(255,255,255,.12); font-size: 11px; color: #dce5f6;
+      white-space: nowrap; pointer-events: none; backdrop-filter: blur(12px);
+    }
+    #crosshair-info {
+      position: absolute; z-index: 7; top: 50%; left: 50%; transform: translate(-50%,-50%);
+      display: none; padding: 10px 16px; border-radius: 99px; background: rgba(5,10,20,.78);
+      border: 1px solid var(--line); font-size: 12px; pointer-events: none;
+    }
+    #toast {
+      position: absolute; z-index: 20; top: calc(80px + env(safe-area-inset-top)); left: 50%;
+      transform: translate(-50%,-8px); opacity: 0; pointer-events: none;
+      background: #e1fff3; color: #10251f; padding: 10px 15px; border-radius: 12px;
+      font-size: 12px; font-weight: 700; transition: opacity .2s, transform .2s;
+      max-width: calc(100vw - 32px); text-align: center;
+    }
+    #toast.show { opacity: 1; transform: translate(-50%,0); }
+    #open-menu-btn { position: absolute; z-index: 8; top: calc(18px + env(safe-area-inset-top)); left: 18px; display: none; }
+    .empty-state { position: absolute; z-index: 2; inset: 0; display: grid; place-items: center; padding: 24px; pointer-events: none; }
+    .empty-card { max-width: 340px; text-align: center; padding: 28px; border-radius: 25px; background: rgba(12,19,35,.65); border: 1px solid rgba(255,255,255,.1); backdrop-filter: blur(15px); }
+    .empty-icon { font-size: 36px; margin-bottom: 14px; }
+    .empty-card h2 { font-size: 22px; margin: 0 0 8px; letter-spacing: -.04em; }
+    .empty-card p { font-size: 12px; line-height: 1.6; color: var(--muted); margin: 0; }
+    @media (max-width: 640px) {
+      .topbar { padding-left: 15px; padding-right: 15px; padding-top: calc(12px + env(safe-area-inset-top)); }
+      .brand-mark { width: 35px; height: 35px; }
+      .brand-name { font-size: 13px; } .brand-sub { font-size: 10px; }
+      .pill { padding: 8px 10px; font-size: 11px; } .top-actions { gap: 7px; }
+      .top-actions .icon-btn { width: 38px; height: 38px; }
+      .panel { top: auto; bottom: calc(88px + env(safe-area-inset-bottom)); left: 10px; width: calc(100vw - 20px); max-height: min(68dvh, 600px); padding: 17px; border-radius: 21px; }
+      .panel.closed { transform: translateY(calc(100% + 110px)); }
+      .panel h1 { font-size: 21px; }
+      .bottom-dock { bottom: calc(10px + env(safe-area-inset-bottom)); width: calc(100vw - 20px); padding: 9px 10px; border-radius: 18px; gap: 8px; }
+      .dock-title { font-size: 12px; } .dock-caption { font-size: 10px; }
+      .dock-actions { gap: 5px; } .dock-actions .icon-btn { width: 38px; height: 38px; }
+      .dock-actions .primary { padding: 10px 12px; font-size: 12px; }
+      .tip { bottom: calc(78px + env(safe-area-inset-bottom)); font-size: 10px; max-width: calc(100vw - 40px); overflow: hidden; text-overflow: ellipsis; }
+      .panel-head .icon-btn { width: 36px; height: 36px; }
+    }
+    @media (prefers-reduced-motion: reduce) { *, *:before, *:after { transition: none !important; scroll-behavior: auto !important; } }
+  </style>
+</head>
+<body>
+  <div id="pano-container" aria-label="Video panorama 360 derajat"></div>
+  <div class="ambient"></div>
+
+  <div class="empty-state" id="empty-state">
+    <div class="empty-card">
+      <div class="empty-icon">◉</div>
+      <h2>Your world, in 360°.</h2>
+      <p>Muat video 360° atau tempel URL video untuk mulai menjelajah. Bagikan link agar orang lain bisa langsung menonton.</p>
+    </div>
+  </div>
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark">◉</div>
+      <div><div class="brand-name">ORBIT<span style="color:var(--accent)">.</span></div><div class="brand-sub">Immersive video space</div></div>
+    </div>
+    <div class="top-actions">
+      <div class="pill"><span class="dot"></span> 360° VIEW</div>
+      <button class="icon-btn" id="share-top" aria-label="Bagikan link" title="Bagikan link">↗</button>
+    </div>
+  </header>
+
+  <button id="open-menu-btn" class="icon-btn" aria-label="Buka menu">☰</button>
+
+  <aside id="ui-container" class="panel glass">
+    <div class="panel-head">
+      <div><div class="eyebrow">Workspace / 01</div><h1>Atur pengalamanmu.</h1><p class="subcopy">Satu link untuk berbagi dunia 360° kamu.</p></div>
+      <button id="hide-menu-btn" class="icon-btn" aria-label="Tutup panel">×</button>
+    </div>
+
+    <div class="section" style="border-top:0;padding-top:0;margin-top:0">
+      <div class="section-title">Sumber video <span>MP4 · WEBM</span></div>
+      <div class="stack">
+        <label class="filepick">＋ <span id="file-label">Pilih video dari perangkat</span><input type="file" id="file-upload" accept="video/mp4,video/webm,video/quicktime"></label>
+        <div style="text-align:center;font-size:10px;color:var(--muted)">atau gunakan URL publik</div>
+        <input class="field" type="url" id="url-input" placeholder="https://example.com/video.mp4" autocomplete="url" aria-label="URL video">
+        <button id="load-btn" class="primary">▶ &nbsp;Muat video 360°</button>
+        <p class="hint">Gunakan video 360° equirectangular. URL harus publik dan mengizinkan pemutaran lintas domain (CORS).</p>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Playback <span>Audio & motion</span></div>
+      <label class="toggle-row"><span>🔊 Audio aktif</span><input id="audio-toggle" class="switch" type="checkbox" checked></label>
+      <label class="toggle-row"><span>↻ Putar berulang</span><input id="loop-toggle" class="switch" type="checkbox" checked></label>
+      <label class="toggle-row"><span>✧ Auto-rotate</span><input id="rotate-toggle" class="switch" type="checkbox"></label>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Anotasi 3D <span id="annot-status">Nonaktif</span></div>
+      <button id="annot-btn" class="secondary" style="width:100%">＋ Tambah anotasi</button>
+      <button id="clear-annot-btn" class="secondary" style="width:100%;margin-top:8px">Hapus semua anotasi</button>
+      <p class="hint">Aktifkan mode anotasi, lalu pilih titik pada panorama.</p>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Bagikan viewer</div>
+      <button id="share-btn" class="primary" style="width:100%">↗ &nbsp;Salin link berbagi</button>
+      <p class="hint">Link video publik bisa dibuka di perangkat lain. File lokal tidak ikut terunggah—gunakan URL publik untuk berbagi.</p>
+    </div>
+  </aside>
+
+  <div id="crosshair-info">Pilih titik untuk menambahkan anotasi</div>
+  <div class="tip" id="tip">Geser untuk melihat sekeliling · Cubit untuk zoom</div>
+
+  <div class="bottom-dock glass">
+    <div class="dock-main"><div class="dock-title" id="now-title">Belum ada video</div><div class="dock-caption" id="now-caption">Muat video untuk memulai pengalaman</div></div>
+    <div class="dock-actions">
+      <button class="icon-btn" id="sound-btn" aria-label="Aktifkan atau matikan audio" title="Audio">♫</button>
+      <button class="icon-btn" id="fullscreen-btn" aria-label="Layar penuh" title="Layar penuh">⛶</button>
+      <button class="primary" id="share-dock">↗ <span>Bagikan</span></button>
+    </div>
+  </div>
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    (() => {
+      'use strict';
+      const $ = id => document.getElementById(id);
+      const fileUpload = $('file-upload');
+      const urlInput = $('url-input');
+      const ui = $('ui-container');
+      const openMenu = $('open-menu-btn');
+      const empty = $('empty-state');
+      const loopToggle = $('loop-toggle');
+      const audioToggle = $('audio-toggle');
+      const rotateToggle = $('rotate-toggle');
+
+      let currentPanorama = null;
+      let infospots = [];
+      let isAnnotMode = false;
+      let currentUrl = '';
+      let currentTitle = '';
+      let localObjectUrl = '';
+      let toastTimer = null;
+
+      const viewer = new PANOLENS.Viewer({
+        container: $('pano-container'),
+        controlBar: false,
+        cameraFov: 85
+      });
+
+      function toast(message) {
+        const el = $('toast');
+        el.textContent = message;
+        el.classList.add('show');
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
+      }
+
+      function updateTitle(title) {
+        currentTitle = title || '360° Experience';
+        $('now-title').textContent = currentTitle;
+        $('now-caption').textContent = currentUrl
+          ? 'Siap dijelajahi · Link dapat dibagikan'
+          : 'Video lokal · Hanya di perangkat ini';
+        document.title = currentTitle + ' — Orbit 360° Viewer';
+      }
+
+      function buildShareUrl() {
+        const url = new URL(window.location.href);
+        if (currentUrl) {
+          url.searchParams.set('video', currentUrl);
+          if (currentTitle) url.searchParams.set('title', currentTitle);
+          else url.searchParams.delete('title');
+        } else {
+          url.searchParams.delete('video');
+          url.searchParams.delete('title');
+        }
+        return url.toString();
+      }
+
+      async function share() {
+        if (!currentUrl) {
+          toast('Untuk berbagi, muat video dari URL publik terlebih dahulu.');
+          return;
+        }
+        const url = buildShareUrl();
+        try {
+          if (navigator.share) {
+            await navigator.share({ title: currentTitle || 'Orbit 360° Viewer', text: 'Jelajahi video 360° ini', url });
+          } else if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(url);
+            toast('Link berbagi berhasil disalin!');
+          } else {
+            const field = document.createElement('textarea');
+            field.value = url;
+            field.setAttribute('readonly', '');
+            field.style.position = 'fixed';
+            field.style.opacity = '0';
+            document.body.appendChild(field);
+            field.select();
+            let copied = false;
+            try { copied = document.execCommand('copy'); } catch (_) {}
+            field.remove();
+            if (copied) toast('Link berbagi berhasil disalin!');
+            else window.prompt('Salin link berbagi ini:', url);
+          }
+        } catch (error) {
+          if (error && error.name !== 'AbortError') toast('Gagal membuka menu berbagi. Coba lagi.');
+        }
+      }
+
+      function setAnnotMode(on) {
+        isAnnotMode = on;
+        $('annot-btn').classList.toggle('active', on);
+        $('annot-btn').textContent = on ? '× Batalkan anotasi' : '＋ Tambah anotasi';
+        $('annot-status').textContent = on ? 'Aktif' : 'Nonaktif';
+        $('crosshair-info').style.display = on ? 'block' : 'none';
+      }
+
+      function cleanupPanorama() {
+        if (currentPanorama) {
+          try { viewer.remove(currentPanorama); } catch (_) {}
+          try { currentPanorama.dispose(); } catch (_) {}
+          currentPanorama = null;
+        }
+        infospots = [];
+      }
+
+      function loadVideo(url, title, isLocal) {
+        if (!url) {
+          toast('Pilih file atau masukkan URL video terlebih dahulu.');
+          return;
+        }
+
+        cleanupPanorama();
+        setAnnotMode(false);
+        currentUrl = isLocal ? '' : url;
+        updateTitle(title || '360° Experience');
+        empty.style.display = 'none';
+        $('tip').style.display = 'block';
+
+        try {
+          currentPanorama = new PANOLENS.VideoPanorama(url, {
+            autoplay: false,
+            loop: loopToggle.checked,
+            muted: !audioToggle.checked
+          });
+          viewer.add(currentPanorama);
+          viewer.setPanorama(currentPanorama);
+
+          currentPanorama.addEventListener('click', event => {
+            if (!isAnnotMode || !event.intersects || !event.intersects.length) return;
+            const point = event.intersects[0].point;
+            const label = window.prompt('Tulis label anotasi:');
+            if (!label || !label.trim()) return;
+            const spot = new PANOLENS.Infospot(300, PANOLENS.DataImage.Info);
+            spot.position.copy(point);
+            spot.addHoverText(label.trim());
+            spot.show();
+            currentPanorama.add(spot);
+            infospots.push(spot);
+            setAnnotMode(false);
+          });
+
+          const video = currentPanorama.getVideoElement();
+          if (video) {
+            video.loop = loopToggle.checked;
+            video.muted = !audioToggle.checked;
+            video.playsInline = true;
+            video.setAttribute('playsinline', '');
+            video.setAttribute('webkit-playsinline', '');
+            video.addEventListener('error', () => {
+              toast('Video gagal diputar. Periksa URL, format, dan izin CORS.');
+            }, { once: true });
+            video.addEventListener('playing', () => {
+              $('now-caption').textContent = audioToggle.checked
+                ? 'Diputar dengan audio · 360°'
+                : 'Diputar tanpa suara · 360°';
+            }, { once: true });
+            const playAttempt = video.play();
+            if (playAttempt && typeof playAttempt.catch === 'function') {
+              playAttempt.catch(() => {
+                toast('Jika video belum mulai, tekan play atau aktifkan audio.');
+              });
+            }
+          }
+
+          $('sound-btn').textContent = audioToggle.checked ? '♫' : '♩';
+          $('sound-btn').classList.toggle('active', audioToggle.checked);
+          window.history.replaceState({}, '', buildShareUrl());
+        } catch (error) {
+          console.error(error);
+          toast('Video gagal dimuat. Periksa URL, format, dan izin CORS.');
+          empty.style.display = 'grid';
+        }
+      }
+
+      fileUpload.addEventListener('change', () => {
+        const file = fileUpload.files && fileUpload.files[0];
+        if (!file) return;
+        $('file-label').textContent = file.name;
+        urlInput.value = '';
+        if (localObjectUrl) URL.revokeObjectURL(localObjectUrl);
+        localObjectUrl = URL.createObjectURL(file);
+        loadVideo(localObjectUrl, file.name, true);
+      });
+
+      $('load-btn').addEventListener('click', () => {
+        const rawUrl = urlInput.value.trim();
+        if (!rawUrl) {
+          toast('Masukkan URL video publik atau pilih file.');
+          return;
+        }
+        let parsed;
+        try {
+          parsed = new URL(rawUrl);
+          if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Unsupported protocol');
+        } catch (_) {
+          toast('Masukkan URL video http:// atau https:// yang valid.');
+          return;
+        }
+        if (localObjectUrl) {
+          URL.revokeObjectURL(localObjectUrl);
+          localObjectUrl = '';
+        }
+        fileUpload.value = '';
+        $('file-label').textContent = 'Pilih video dari perangkat';
+        const filename = decodeURIComponent(parsed.pathname.split('/').pop() || '360° Experience');
+        loadVideo(parsed.href, filename, false);
+      });
+
+      loopToggle.addEventListener('change', () => {
+        const video = currentPanorama && currentPanorama.getVideoElement();
+        if (video) video.loop = loopToggle.checked;
+      });
+
+      audioToggle.addEventListener('change', () => {
+        const video = currentPanorama && currentPanorama.getVideoElement();
+        if (video) {
+          video.muted = !audioToggle.checked;
+          if (audioToggle.checked) {
+            const playAttempt = video.play();
+            if (playAttempt && typeof playAttempt.catch === 'function') {
+              playAttempt.catch(() => toast('Tekan play pada video untuk mengaktifkan audio.'));
+            }
+          }
+        }
+        $('sound-btn').textContent = audioToggle.checked ? '♫' : '♩';
+        $('sound-btn').classList.toggle('active', audioToggle.checked);
+      });
+
+      $('sound-btn').addEventListener('click', () => {
+        audioToggle.checked = !audioToggle.checked;
+        audioToggle.dispatchEvent(new Event('change'));
+      });
+
+      rotateToggle.addEventListener('change', () => {
+        const controls = viewer.OrbitControls;
+        if (controls && 'autoRotate' in controls) {
+          controls.autoRotate = rotateToggle.checked;
+          toast(rotateToggle.checked ? 'Auto-rotate aktif.' : 'Auto-rotate nonaktif.');
+        } else {
+          toast('Auto-rotate tidak tersedia pada versi viewer ini.');
+          rotateToggle.checked = false;
+        }
+      });
+
+      $('annot-btn').addEventListener('click', () => setAnnotMode(!isAnnotMode));
+
+      $('clear-annot-btn').addEventListener('click', () => {
+        if (currentPanorama) infospots.forEach(spot => currentPanorama.remove(spot));
+        infospots = [];
+        setAnnotMode(false);
+        toast('Anotasi dibersihkan.');
+      });
+
+      $('hide-menu-btn').addEventListener('click', () => {
+        ui.classList.add('closed');
+        openMenu.style.display = 'grid';
+      });
+
+      openMenu.addEventListener('click', () => {
+        ui.classList.remove('closed');
+        openMenu.style.display = 'none';
+      });
+
+      $('share-btn').addEventListener('click', share);
+      $('share-top').addEventListener('click', share);
+      $('share-dock').addEventListener('click', share);
+
+      $('fullscreen-btn').addEventListener('click', () => {
+        const target = $('pano-container');
+        if (!document.fullscreenElement) {
+          if (target.requestFullscreen) {
+            target.requestFullscreen().catch(() => toast('Layar penuh tidak tersedia.'));
+          } else {
+            toast('Layar penuh tidak didukung browser ini.');
+          }
+        } else if (document.exitFullscreen) {
+          document.exitFullscreen();
+        }
+      });
+
+      window.addEventListener('resize', () => viewer.onWindowResize());
+      window.addEventListener('beforeunload', () => {
+        if (localObjectUrl) URL.revokeObjectURL(localObjectUrl);
+      });
+
+      // Buka otomatis video yang disematkan di link share: ?video=URL&title=Judul
+      const params = new URLSearchParams(window.location.search);
+      const sharedVideo = params.get('video');
+      const sharedTitle = params.get('title');
+      if (sharedVideo) {
+        try {
+          const parsed = new URL(sharedVideo);
+          if (['http:', 'https:'].includes(parsed.protocol)) {
+            urlInput.value = parsed.href;
+            loadVideo(parsed.href, sharedTitle || '360° Experience', false);
+          } else {
+            toast('Link video tidak valid.');
+          }
+        } catch (_) {
+          toast('Link video tidak valid.');
+        }
+      }
+    })();
+  </script>
+</body>
+</html>
