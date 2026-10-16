@@ -32,13 +32,14 @@
       </div>
 
       <!-- Center Content -->
-      <div class="text-center">
+      <div id="empty-viewer" class="text-center">
         <div class="w-12 h-12 rounded-full border-4 border-gray-600 flex items-center justify-center mx-auto mb-4">
           <div class="w-8 h-8 rounded-full bg-gray-500"></div>
         </div>
         <h2 class="text-2xl font-bold mb-2">Explore your 360° videos</h2>
-        <p class="text-gray-400 max-w-sm mx-auto">Upload a video or enter a video URL to get started.</p>
+        <p class="text-gray-400 max-w-sm mx-auto">Upload a video to get started.</p>
       </div>
+      <video id="viewer-video" controls playsinline class="hidden w-full h-full max-h-full object-contain rounded-2xl" style="background:#000"></video>
 
       <!-- Bottom Overlay inside Viewer -->
       <div class="absolute bottom-4 left-4 right-4 flex justify-between items-end w-[calc(100%-2rem)]">
@@ -169,8 +170,16 @@
           return;
         }
         uploadProgress.textContent = '100%';
-        uploadStatus.textContent = 'Upload complete!';
+        uploadStatus.textContent = 'Upload complete! Video loaded in viewer.';
         console.log('File uploaded to:', result.url);
+        const viewerVideo = document.getElementById('viewer-video');
+        viewerVideo.src = result.url;
+        viewerVideo.classList.remove('hidden');
+        document.getElementById('empty-viewer').classList.add('hidden');
+        viewerVideo.load();
+        viewerVideo.play().catch(() => {
+          uploadStatus.textContent = 'Upload complete! Press Play in the video controls to start.';
+        });
         uploadBtn.disabled = false;
       });
 
