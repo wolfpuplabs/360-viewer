@@ -17,6 +17,7 @@ export default async function handler(req, res) {
     // Upload stream langsung ke Vercel Blob
     const blob = await put(filename, req, {
       access: 'public',
+      addRandomSuffix: true,
     });
 
     return res.status(200).json(blob);
