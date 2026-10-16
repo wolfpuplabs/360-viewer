@@ -249,6 +249,14 @@
         document.getElementById('upload-status').textContent = 'Could not play video: ' + (error?.message || 'playback failed');
       }
     });
+    const loopButton = document.getElementById('loop-toggle');
+    if (loopButton) {
+      video.loop = true;
+      loopButton.addEventListener('click', () => {
+        video.loop = !video.loop;
+        loopButton.textContent = video.loop ? '↻ Loop on' : '↻ Loop off';
+      });
+    }
     const resetButton = document.getElementById('reset-view');
     if (resetButton) resetButton.addEventListener('click', () => controls.reset());
     const fullscreen = document.getElementById('viewer-fullscreen');
@@ -371,6 +379,26 @@
       url.searchParams.set('annotations', encodeJson(annotations));
       return url.toString();
     }
+    shareButton?.addEventListener('click', async () => {
+      if (!video.currentSrc && !video.src) {
+        shareStatus.textContent = 'Upload or open a video before creating a share link.';
+        return;
+      }
+      const link = makeShareUrl();
+      if (shareOutput) {
+        shareOutput.value = link;
+        shareOutput.classList.remove('hidden');
+        shareOutput.focus();
+        shareOutput.select();
+      }
+      try {
+        await navigator.clipboard.writeText(link);
+        shareStatus.textContent = 'Share link copied.';
+      } catch {
+        shareStatus.textContent = 'Link shown below. Select and copy it manually.';
+      }
+    });
+
     annotationToggle?.addEventListener('click', () => {
       addingAnnotation = !addingAnnotation;
       annotationToggle.textContent = addingAnnotation ? 'Click video to annotate…' : '+ Add annotation';
@@ -435,6 +463,7 @@
       }
     });
     if (sharedVideo) {
+      video.loop = true;
       video.src = sharedVideo;
       video.load();
       document.getElementById('empty-viewer').classList.add('hidden');
