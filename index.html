@@ -58,12 +58,12 @@
 
     <!-- Viewer Controls Bottom -->
     <div class="mt-4 flex flex-wrap gap-2 items-center">
-      <button class="btn-purple px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2">
-        ▶ Play video
-      </button>
-      <button class="btn-dark px-4 py-2 rounded-lg text-sm font-medium">⟲ Reset view</button>
-      <button class="btn-dark px-4 py-2 rounded-lg text-sm font-medium">+ Add annotation</button>
-      <button class="btn-dark px-4 py-2 rounded-lg text-sm font-medium">↗ Copy share link</button>
+      <button id="play-toggle" class="btn-purple px-4 py-2 rounded-lg text-sm font-medium">▶ Play video</button>
+      <button id="sound-toggle" class="btn-dark px-4 py-2 rounded-lg text-sm font-medium">🔊 Sound on</button>
+      <button id="loop-toggle" class="btn-dark px-4 py-2 rounded-lg text-sm font-medium">↻ Loop on</button>
+      <button id="reset-view" class="btn-dark px-4 py-2 rounded-lg text-sm font-medium">⟲ Reset view</button>
+      <button id="annotation-toggle" class="btn-dark px-4 py-2 rounded-lg text-sm font-medium">+ Add annotation</button>
+      <button id="share-toggle" class="btn-dark px-4 py-2 rounded-lg text-sm font-medium">↗ Copy share link</button>
     </div>
     
     <div class="mt-4 text-xs text-gray-500">
@@ -107,9 +107,9 @@
 
     <!-- 02 / Annotations -->
     <section class="mb-8">
-      <h3 class="font-bold mb-4">02 / Annotations (0)</h3>
-      <p class="text-sm text-gray-400 mb-4">Add interactive dots that are also saved in the share link.</p>
-      <p class="text-sm text-gray-500">There are no annotations yet.</p>
+      <h3 id="annotation-heading" class="font-bold mb-4">02 / Annotations (0)</h3>
+      <p class="text-sm text-gray-400 mb-4">Click “Add annotation”, then select a point in the 360° view.</p>
+      <ul id="annotation-list" class="space-y-2 text-sm text-gray-300"><li class="text-gray-500">There are no annotations yet.</li></ul>
     </section>
 
     <hr class="border-gray-800 mb-8" />
@@ -181,7 +181,13 @@
         viewerVideo.load();
         document.getElementById('empty-viewer').classList.add('hidden');
         document.getElementById('panorama-canvas').classList.remove('hidden');
-        window.dispatchEvent(new CustomEvent('orbit-video-loaded'));
+        try {
+        const encoded = params.get('annotations');
+        if (encoded) annotations = JSON.parse(decodeURIComponent(escape(atob(encoded))));
+      } catch { annotations = []; }
+      renderAnnotationMeshes();
+      renderAnnotationList();
+      window.dispatchEvent(new CustomEvent('orbit-video-loaded'));
         uploadBtn.disabled = false;
       });
 
@@ -213,13 +219,59 @@
     const camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1100);
     camera.position.set(0, 0, 0.1);
 
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2.5));
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
     const geometry = new THREE.SphereGeometry(500, 64, 40);
     geometry.scale(-1, 1, 1);
     const texture = new THREE.VideoTexture(video);
     texture.colorSpace = THREE.SRGBColorSpace;
-    scene.add(new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ map: texture })));
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = THREE.LinearFilter;
+    const panoramaSphere = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ map: texture, side: THREE.BackSide }));
+    scene.add(panoramaSphere);
+    video.loop = true;
+    video.muted = false;
+    video.volume = 1;
+    video.playsInline = true;
+
+    let annotationMode = false;
+    let annotations = [];
+    const annotationMeshes = new THREE.Group();
+    scene.add(annotationMeshes);
+    const raycaster = new THREE.Raycaster();
+    const pointer = new THREE.Vector2();
+    const annotationList = document.getElementById('annotation-list');
+    function renderAnnotationMeshes() {
+      annotationMeshes.clear();
+      annotations.forEach((item) => {
+        const marker = new THREE.Mesh(new THREE.SphereGeometry(5, 16, 12), new THREE.MeshBasicMaterial({ color: 0xffcc33, depthTest: false }));
+        marker.position.set(item.x, item.y, item.z).normalize().multiplyScalar(470);
+        marker.renderOrder = 10;
+        annotationMeshes.add(marker);
+      });
+    }
+    function renderAnnotationList() {
+      document.getElementById('annotation-heading').textContent = `02 / Annotations (${annotations.length})`;
+      annotationList.replaceChildren();
+      if (!annotations.length) {
+        const li = document.createElement('li'); li.className = 'text-gray-500'; li.textContent = 'There are no annotations yet.'; annotationList.appendChild(li);
+      }
+      annotations.forEach((item, index) => {
+        const li = document.createElement('li'); li.className = 'flex items-center justify-between gap-2 rounded bg-gray-900 p-2';
+        const label = document.createElement('span'); label.textContent = item.label;
+        const remove = document.createElement('button'); remove.className = 'btn-dark rounded px-2 py-1'; remove.textContent = '×';
+        remove.addEventListener('click', () => { annotations.splice(index, 1); renderAnnotationMeshes(); renderAnnotationList(); });
+        li.append(label, remove); annotationList.appendChild(li);
+      });
+    }
+    function makeShareUrl() {
+      const url = new URL(location.href);
+      url.searchParams.set('video', video.src);
+      if (annotations.length) url.searchParams.set('annotations', btoa(unescape(encodeURIComponent(JSON.stringify(annotations)))));
+      else url.searchParams.delete('annotations');
+      return url.toString();
+    }
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enablePan = false;
@@ -250,18 +302,47 @@
       }
     });
 
-    const buttons = document.querySelectorAll('main > .mt-4 button');
-    if (buttons[0]) buttons[0].addEventListener('click', async () => {
-      if (!video.src) return;
+    document.getElementById('play-toggle').addEventListener('click', async () => {
       try { if (video.paused) await video.play(); else video.pause(); } catch {}
     });
-    if (buttons[1]) buttons[1].addEventListener('click', () => controls.reset());
-    if (buttons[3]) buttons[3].addEventListener('click', async () => {
+    video.addEventListener('play', () => document.getElementById('play-toggle').textContent = 'Ⅱ Pause video');
+    video.addEventListener('pause', () => document.getElementById('play-toggle').textContent = '▶ Play video');
+    document.getElementById('sound-toggle').addEventListener('click', () => {
+      video.muted = !video.muted;
+      document.getElementById('sound-toggle').textContent = video.muted ? '🔇 Sound off' : '🔊 Sound on';
+    });
+    document.getElementById('loop-toggle').addEventListener('click', () => {
+      video.loop = !video.loop;
+      document.getElementById('loop-toggle').textContent = video.loop ? '↻ Loop on' : '↻ Loop off';
+    });
+    document.getElementById('reset-view').addEventListener('click', () => controls.reset());
+    document.getElementById('annotation-toggle').addEventListener('click', () => {
+      annotationMode = !annotationMode;
+      document.getElementById('annotation-toggle').textContent = annotationMode ? 'Click view to place…' : '+ Add annotation';
+      document.getElementById('upload-status').textContent = annotationMode ? 'Click a point in the 360° view.' : 'Annotation mode off.';
+    });
+    renderer.domElement.addEventListener('click', (event) => {
+      if (!annotationMode || !video.src) return;
+      const rect = renderer.domElement.getBoundingClientRect();
+      pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+      pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      raycaster.setFromCamera(pointer, camera);
+      const hit = raycaster.intersectObject(panoramaSphere, false)[0];
+      if (!hit) return;
+      const label = prompt('Annotation label?');
+      if (!label || !label.trim()) return;
+      const p = hit.point.clone().normalize().multiplyScalar(470);
+      annotations.push({ label: label.trim(), x: p.x, y: p.y, z: p.z });
+      renderAnnotationMeshes(); renderAnnotationList();
+      annotationMode = false;
+      document.getElementById('annotation-toggle').textContent = '+ Add annotation';
+      document.getElementById('upload-status').textContent = 'Annotation added.';
+    });
+    document.getElementById('share-toggle').addEventListener('click', async () => {
       if (!video.src) return;
-      const url = new URL(location.href);
-      url.searchParams.set('video', video.src);
-      try { await navigator.clipboard.writeText(url.toString()); document.getElementById('upload-status').textContent = 'Share link copied.'; }
-      catch { window.prompt('Copy share link:', url.toString()); }
+      const url = makeShareUrl();
+      try { await navigator.clipboard.writeText(url); document.getElementById('upload-status').textContent = 'Share link copied.'; }
+      catch { prompt('Copy this share link:', url); }
     });
     const fullscreen = container.querySelector('button');
     if (fullscreen) fullscreen.addEventListener('click', async () => {
