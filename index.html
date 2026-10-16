@@ -13,13 +13,16 @@
     .btn-purple:hover { background-color: #7c3aed; }
     .btn-dark { background-color: #1f2937; color: #d1d5db; border: 1px solid #374151; }
     .btn-dark:hover { background-color: #374151; }
+    #viewer-container { overflow: hidden; }
+    #panorama-canvas { position:absolute; inset:0; width:100%; height:100%; display:block; touch-action:none; }
+    #viewer-video { display:none !important; }
   </style>
 </head>
 <body class="h-screen flex overflow-hidden">
 
   <!-- Main Viewer Area -->
   <main class="flex-1 flex flex-col p-4 md:p-6">
-    <div class="flex-1 rounded-2xl bg-card border border-gray-800 relative flex flex-col items-center justify-center">
+    <div id="viewer-container" class="flex-1 rounded-2xl bg-card border border-gray-800 relative flex flex-col items-center justify-center">
       
       <!-- Top Bar inside Viewer -->
       <div class="absolute top-4 left-4 right-4 flex justify-between items-center w-[calc(100%-2rem)]">
@@ -39,7 +42,8 @@
         <h2 class="text-2xl font-bold mb-2">Explore your 360° videos</h2>
         <p class="text-gray-400 max-w-sm mx-auto">Upload a video to get started.</p>
       </div>
-      <video id="viewer-video" controls playsinline class="hidden w-full h-full max-h-full object-contain rounded-2xl" style="background:#000"></video>
+      <video id="viewer-video" playsinline crossorigin="anonymous" style="display:none"></video>
+      <canvas id="panorama-canvas" class="hidden" aria-label="Interactive 360 degree video viewer"></canvas>
 
       <!-- Bottom Overlay inside Viewer -->
       <div class="absolute bottom-4 left-4 right-4 flex justify-between items-end w-[calc(100%-2rem)]">
@@ -174,12 +178,10 @@
         console.log('File uploaded to:', result.url);
         const viewerVideo = document.getElementById('viewer-video');
         viewerVideo.src = result.url;
-        viewerVideo.classList.remove('hidden');
-        document.getElementById('empty-viewer').classList.add('hidden');
         viewerVideo.load();
-        viewerVideo.play().catch(() => {
-          uploadStatus.textContent = 'Upload complete! Press Play in the video controls to start.';
-        });
+        document.getElementById('empty-viewer').classList.add('hidden');
+        document.getElementById('panorama-canvas').classList.remove('hidden');
+        window.dispatchEvent(new CustomEvent('orbit-video-loaded'));
         uploadBtn.disabled = false;
       });
 
@@ -198,6 +200,90 @@
       uploadStatus.textContent = 'Uploading video...';
       xhr.send(selectedFile);
     });
+  </script>
+  <script type="module">
+    import * as THREE from 'https://esm.sh/three@0.160.0';
+    import { OrbitControls } from 'https://esm.sh/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+
+    const container = document.getElementById('viewer-container');
+    const video = document.getElementById('viewer-video');
+    const canvas = document.getElementById('panorama-canvas');
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x050608);
+    const camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1100);
+    camera.position.set(0, 0, 0.1);
+
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    const geometry = new THREE.SphereGeometry(500, 64, 40);
+    geometry.scale(-1, 1, 1);
+    const texture = new THREE.VideoTexture(video);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    scene.add(new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ map: texture })));
+
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enablePan = false;
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.06;
+    controls.rotateSpeed = -0.25;
+    controls.minDistance = 0.1;
+    controls.maxDistance = 0.1;
+    controls.minPolarAngle = 0.05;
+    controls.maxPolarAngle = Math.PI - 0.05;
+
+    function resize() {
+      const width = Math.max(1, container.clientWidth);
+      const height = Math.max(1, container.clientHeight);
+      renderer.setSize(width, height, false);
+      camera.aspect = width / height;
+      camera.updateProjectionMatrix();
+    }
+    new ResizeObserver(resize).observe(container);
+    resize();
+
+    window.addEventListener('orbit-video-loaded', async () => {
+      try {
+        await video.play();
+        document.getElementById('upload-status').textContent = '360° video loaded — drag to look around.';
+      } catch {
+        document.getElementById('upload-status').textContent = '360° video loaded — press Play below to start.';
+      }
+    });
+
+    const buttons = document.querySelectorAll('main > .mt-4 button');
+    if (buttons[0]) buttons[0].addEventListener('click', async () => {
+      if (!video.src) return;
+      try { if (video.paused) await video.play(); else video.pause(); } catch {}
+    });
+    if (buttons[1]) buttons[1].addEventListener('click', () => controls.reset());
+    if (buttons[3]) buttons[3].addEventListener('click', async () => {
+      if (!video.src) return;
+      const url = new URL(location.href);
+      url.searchParams.set('video', video.src);
+      try { await navigator.clipboard.writeText(url.toString()); document.getElementById('upload-status').textContent = 'Share link copied.'; }
+      catch { window.prompt('Copy share link:', url.toString()); }
+    });
+    const fullscreen = container.querySelector('button');
+    if (fullscreen) fullscreen.addEventListener('click', async () => {
+      try { if (!document.fullscreenElement) await container.requestFullscreen(); else await document.exitFullscreen(); } catch {}
+    });
+
+    const params = new URLSearchParams(location.search);
+    const sharedVideo = params.get('video');
+    if (sharedVideo) {
+      video.src = sharedVideo;
+      video.load();
+      document.getElementById('empty-viewer').classList.add('hidden');
+      canvas.classList.remove('hidden');
+      window.dispatchEvent(new CustomEvent('orbit-video-loaded'));
+    }
+
+    function animate() {
+      requestAnimationFrame(animate);
+      controls.update();
+      renderer.render(scene, camera);
+    }
+    animate();
   </script>
 </body>
 </html>
