@@ -404,7 +404,19 @@
         shareStatus.textContent = 'Upload or open a video before creating a share link.';
         return;
       }
-      const link = makeShareUrl();
+      const longLink = makeShareUrl();
+      let link = longLink;
+      shareStatus.textContent = 'Shortening link…';
+      try {
+        const response = await fetch('https://is.gd/create.php?format=simple&url=' + encodeURIComponent(longLink));
+        if (!response.ok) throw new Error('Shortener unavailable');
+        const shortened = (await response.text()).trim();
+        if (!/^https?:\/\/is\.gd\/[A-Za-z0-9]+$/.test(shortened)) throw new Error('Invalid short link');
+        link = shortened;
+      } catch (error) {
+        console.warn('Could not shorten share link:', error);
+        shareStatus.textContent = 'Short link unavailable; copying the original link instead.';
+      }
       if (shareOutput) {
         shareOutput.value = link;
         shareOutput.classList.remove('hidden');
@@ -413,9 +425,13 @@
       }
       try {
         await navigator.clipboard.writeText(link);
-        shareStatus.textContent = 'Share link copied.';
+        if (link === longLink) {
+          shareStatus.textContent = 'Original link copied.';
+        } else {
+          shareStatus.textContent = 'Short share link copied.';
+        }
       } catch {
-        shareStatus.textContent = 'Link is shown below. Select and copy it manually.';
+        shareStatus.textContent += ' Link is shown below. Select and copy it manually.';
       }
     });
     if (sharedVideo) {
