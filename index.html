@@ -50,9 +50,10 @@
         <div class="px-3 py-1.5 rounded-full bg-gray-900/80 border border-gray-700 text-xs text-gray-400">
           Swipe to look around
         </div>
-        <button class="px-3 py-1.5 rounded-lg bg-gray-900/80 border border-gray-700 text-xs text-gray-400 flex items-center gap-2 btn-dark">
-          [ ] Full screen
-        </button>
+        <div class="flex gap-2">
+          <button id="viewer-play-overlay" class="px-3 py-1.5 rounded-lg bg-purple-600 text-white text-sm font-semibold">▶ Play</button>
+          <button id="viewer-fullscreen" class="px-3 py-1.5 rounded-lg bg-gray-900/80 border border-gray-700 text-xs text-gray-200 btn-dark">⛶ Full screen</button>
+        </div>
       </div>
     </div>
 
@@ -178,16 +179,11 @@
         console.log('File uploaded to:', result.url);
         const viewerVideo = document.getElementById('viewer-video');
         viewerVideo.src = result.url;
+        viewerVideo.loop = true;
         viewerVideo.load();
         document.getElementById('empty-viewer').classList.add('hidden');
         document.getElementById('panorama-canvas').classList.remove('hidden');
-        try {
-        const encoded = params.get('annotations');
-        if (encoded) annotations = JSON.parse(decodeURIComponent(escape(atob(encoded))));
-      } catch { annotations = []; }
-      renderAnnotationMeshes();
-      renderAnnotationList();
-      window.dispatchEvent(new CustomEvent('orbit-video-loaded'));
+        window.dispatchEvent(new CustomEvent('orbit-video-loaded'));
         uploadBtn.disabled = false;
       });
 
@@ -223,7 +219,6 @@
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2.5));
     renderer.outputColorSpace = THREE.SRGBColorSpace;
     const geometry = new THREE.SphereGeometry(500, 64, 40);
-    geometry.scale(-1, 1, 1);
     const texture = new THREE.VideoTexture(video);
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.minFilter = THREE.LinearFilter;
@@ -302,11 +297,15 @@
       }
     });
 
-    document.getElementById('play-toggle').addEventListener('click', async () => {
-      try { if (video.paused) await video.play(); else video.pause(); } catch {}
+    document.getElementById('viewer-play-overlay').addEventListener('click', async () => {
+      try {
+        if (video.paused) await video.play(); else video.pause();
+      } catch (error) {
+        document.getElementById('upload-status').textContent = 'Cannot play video: ' + (error?.message || 'unsupported video format');
+      }
     });
-    video.addEventListener('play', () => document.getElementById('play-toggle').textContent = 'Ⅱ Pause video');
-    video.addEventListener('pause', () => document.getElementById('play-toggle').textContent = '▶ Play video');
+    video.addEventListener('play', () => document.getElementById('viewer-play-overlay').textContent = 'Ⅱ Pause');
+    video.addEventListener('pause', () => document.getElementById('viewer-play-overlay').textContent = '▶ Play');
     document.getElementById('sound-toggle').addEventListener('click', () => {
       video.muted = !video.muted;
       document.getElementById('sound-toggle').textContent = video.muted ? '🔇 Sound off' : '🔊 Sound on';
@@ -344,7 +343,7 @@
       try { await navigator.clipboard.writeText(url); document.getElementById('upload-status').textContent = 'Share link copied.'; }
       catch { prompt('Copy this share link:', url); }
     });
-    const fullscreen = container.querySelector('button');
+    const fullscreen = document.getElementById('viewer-fullscreen');
     if (fullscreen) fullscreen.addEventListener('click', async () => {
       try { if (!document.fullscreenElement) await container.requestFullscreen(); else await document.exitFullscreen(); } catch {}
     });
