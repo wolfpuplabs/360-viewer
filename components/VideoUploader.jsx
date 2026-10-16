@@ -1,5 +1,6 @@
 'use client';
 import { useState, useRef } from 'react';
+import { upload } from '@vercel/blob/client';
 
 export default function VideoUploader({ onUploadSuccess }) {
   const [file, setFile] = useState(null);
@@ -17,17 +18,20 @@ export default function VideoUploader({ onUploadSuccess }) {
   const handleUpload = async () => {
     if (!file) return;
     setUploading(true);
-    setProgress(10);
+    setProgress(0);
 
     try {
-      const response = await fetch(`/api/upload?filename=${encodeURIComponent(file.name)}`, {
-        method: 'POST',
-        body: file,
+      // Menggunakan Client Upload (upload langsung dari browser ke Blob)
+      const newBlob = await upload(file.name, file, {
+        access: 'public',
+        handleUploadUrl: '/api/upload',
+        onUploadProgress: (progressEvent) => {
+          // Progress bar sekarang akan bergerak secara real-time!
+          const percentage = Math.round((progressEvent.loaded / progressEvent.total) * 100);
+          setProgress(percentage);
+        },
       });
 
-      if (!response.ok) throw new Error('Upload gagal');
-
-      const newBlob = await response.json();
       setProgress(100);
       
       if (onUploadSuccess) {
@@ -35,7 +39,7 @@ export default function VideoUploader({ onUploadSuccess }) {
       }
     } catch (error) {
       console.error('Upload error:', error);
-      alert('Upload gagal');
+      alert('Upload gagal. Pastikan BLOB_READ_WRITE_TOKEN sudah terpasang di Vercel.');
     } finally {
       setUploading(false);
     }
@@ -49,7 +53,7 @@ export default function VideoUploader({ onUploadSuccess }) {
       <div className="flex items-center gap-2 mb-4">
         <input 
           type="file" 
-          accept="video/mp4,video/webm" 
+          accept="video/mp4,video/webm,video/quicktime" 
           className="hidden" 
           ref={fileInputRef}
           onChange={handleFileChange}
@@ -75,7 +79,9 @@ export default function VideoUploader({ onUploadSuccess }) {
 
       {(uploading || progress === 100) && (
         <div className="flex justify-between text-xs text-gray-500 mb-4">
-          <span>{progress === 100 ? 'Upload complete!' : 'Uploading video...'}</span>
+          <span>
+            {uploading ? 'Uploading video...' : progress === 100 ? 'Upload complete!' : 'Failed to upload'}
+          </span>
           <span>{progress}%</span>
         </div>
       )}
