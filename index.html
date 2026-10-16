@@ -117,9 +117,10 @@
     <section>
       <h3 class="font-bold mb-4">03 / Share</h3>
       <p class="text-sm text-gray-400 mb-4">The link includes the video URL, title, and annotation position.</p>
-      <button class="w-full btn-purple py-2 rounded-lg text-sm font-medium">
+      <button id="create-share-link" class="w-full btn-purple py-2 rounded-lg text-sm font-medium">
         Create & copy link
       </button>
+      <p id="share-status" class="mt-2 text-xs text-gray-400" role="status"></p>
     </section>
 
   </aside>
@@ -220,9 +221,36 @@
       annotationMeshes.clear();
       annotations.forEach((item) => {
         const marker = new THREE.Mesh(new THREE.SphereGeometry(5, 16, 12), new THREE.MeshBasicMaterial({ color: 0xffcc33, depthTest: false }));
-        marker.position.set(item.x, item.y, item.z).normalize().multiplyScalar(470);
+        const direction = new THREE.Vector3(item.x, item.y, item.z).normalize();
+        marker.position.copy(direction).multiplyScalar(470);
         marker.renderOrder = 10;
         annotationMeshes.add(marker);
+
+        // Put a readable label next to each marker, facing the camera from inside the panorama.
+        const labelCanvas = document.createElement('canvas');
+        labelCanvas.width = 512;
+        labelCanvas.height = 128;
+        const ctx = labelCanvas.getContext('2d');
+        ctx.fillStyle = 'rgba(10, 11, 16, 0.88)';
+        ctx.strokeStyle = '#ffcc33';
+        ctx.lineWidth = 5;
+        ctx.beginPath();
+        ctx.roundRect(4, 4, 504, 120, 18);
+        ctx.fill();
+        ctx.stroke();
+        ctx.font = 'bold 34px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#ffffff';
+        const text = String(item.label || 'Annotation');
+        ctx.fillText(text.length > 26 ? text.slice(0, 23) + '…' : text, 256, 64);
+        const labelTexture = new THREE.CanvasTexture(labelCanvas);
+        labelTexture.colorSpace = THREE.SRGBColorSpace;
+        const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: labelTexture, depthTest: false, transparent: true }));
+        label.position.copy(direction).multiplyScalar(450);
+        label.scale.set(42, 10.5, 1);
+        label.renderOrder = 11;
+        annotationMeshes.add(label);
       });
     }
     function renderAnnotationList() {
@@ -316,6 +344,28 @@
       document.getElementById('annotation-toggle').textContent = '+ Add annotation';
       document.getElementById('upload-status').textContent = 'Annotation added.';
     });
+    const shareButton = document.getElementById('create-share-link');
+    shareButton.addEventListener('click', async () => {
+      const status = document.getElementById('share-status');
+      if (!video.src) {
+        status.textContent = 'Upload a video first, then create the share link.';
+        return;
+      }
+      const url = makeShareUrl();
+      try {
+        if (navigator.clipboard && window.isSecureContext) {
+          await navigator.clipboard.writeText(url);
+          status.textContent = 'Share link copied to clipboard.';
+        } else {
+          window.prompt('Copy this share link:', url);
+          status.textContent = 'Copy the link from the dialog.';
+        }
+      } catch (error) {
+        window.prompt('Copy this share link:', url);
+        status.textContent = 'Copy the link from the dialog.';
+      }
+    });
+
     const fullscreen = document.getElementById('viewer-fullscreen');
     if (fullscreen) fullscreen.addEventListener('click', async () => {
       try { if (!document.fullscreenElement) await container.requestFullscreen(); else await document.exitFullscreen(); } catch {}
@@ -329,6 +379,16 @@
       document.getElementById('empty-viewer').classList.add('hidden');
       canvas.classList.remove('hidden');
       window.dispatchEvent(new CustomEvent('orbit-video-loaded'));
+      const encodedAnnotations = params.get('annotations');
+      if (encodedAnnotations) {
+        try {
+          annotations = JSON.parse(decodeURIComponent(escape(atob(encodedAnnotations)));
+          renderAnnotationMeshes();
+          renderAnnotationList();
+        } catch (error) {
+          console.warn('Could not read shared annotations:', error);
+        }
+      }
     }
 
     function animate() {
