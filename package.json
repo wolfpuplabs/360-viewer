@@ -1,8 +1,0 @@
-{
-  "name": "360-viewer-blob-ready",
-  "private": true,
-  "type": "module",
-  "dependencies": {
-    "@vercel/blob": "^2.5.0"
-  }
-}
