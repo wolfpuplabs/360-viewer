@@ -2,8 +2,6 @@ import { put } from '@vercel/blob';
 import { NextResponse } from 'next/server';
 
 export async function POST(request) {
-  // Gunakan request.nextUrl.searchParams bawaan Next.js yang aman
-  // Ini menghindari peringatan url.parse()
   const searchParams = request.nextUrl.searchParams;
   const filename = searchParams.get('filename') || 'video.mp4';
 
@@ -15,6 +13,9 @@ export async function POST(request) {
     return NextResponse.json(blob);
   } catch (error) {
     console.error('Blob upload error:', error);
-    return NextResponse.json({ error: 'Upload gagal' }, { status: 500 });
+    return NextResponse.json(
+      { error: 'Gagal mengunggah file ke Vercel Blob' },
+      { status: 500 }
+    );
   }
 }
