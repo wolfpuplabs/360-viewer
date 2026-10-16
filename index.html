@@ -351,13 +351,6 @@
       <div id="uploadStatus" class="status">Pilih video untuk memulai upload.</div>
 
       <div class="field">
-        <label for="urlInput">Atau gunakan URL video</label>
-        <input id="urlInput" type="url" placeholder="https://.../video.mp4">
-      </div>
-
-      <button id="loadUrlBtn" class="full">Buka URL video</button>
-
-      <div class="field">
         <label for="titleInput">Judul video</label>
         <input id="titleInput" type="text" placeholder="Video 360° saya">
       </div>
@@ -639,7 +632,6 @@ async function loadVideo(url, title = '') {
 
   state.videoUrl = url;
   state.title = title || 'Video 360°';
-  $('urlInput').value = url;
   $('titleInput').value = state.title;
 
   video.src = url;
@@ -682,16 +674,6 @@ async function loadVideo(url, title = '') {
   renderAnnotations();
   updateShareUrl();
 }
-
-$('loadUrlBtn').addEventListener('click', async () => {
-  try {
-    await loadVideo($('urlInput').value.trim(), $('titleInput').value.trim());
-    setStatus('uploadStatus', 'Video URL berhasil dibuka.', 'ok');
-  } catch (error) {
-    showVideoStatus('Gagal memuat');
-    setStatus('uploadStatus', error.message, 'error');
-  }
-});
 
 $('titleInput').addEventListener('change', () => {
   state.title = $('titleInput').value.trim() || 'Video 360°';
@@ -882,7 +864,6 @@ async function restoreFromUrl() {
   }
 
   if (sharedVideo) {
-    $('urlInput').value = sharedVideo;
     $('titleInput').value = sharedTitle;
     try {
       await loadVideo(sharedVideo, sharedTitle);
