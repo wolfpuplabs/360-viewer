@@ -193,93 +193,19 @@
     const camera = new THREE.PerspectiveCamera(75, 1, 0.1, 1100);
     camera.position.set(0, 0, 0.1);
 
-    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2.5));
-    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     const geometry = new THREE.SphereGeometry(500, 64, 40);
-    // Restore the sphere orientation used by the earlier working viewer.
     geometry.scale(-1, 1, 1);
     const texture = new THREE.VideoTexture(video);
     texture.colorSpace = THREE.SRGBColorSpace;
-    texture.minFilter = THREE.LinearFilter;
-    texture.magFilter = THREE.LinearFilter;
-    const panoramaSphere = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ map: texture }));
-    scene.add(panoramaSphere);
-    video.loop = true;
-    video.muted = false;
-    video.volume = 1;
-    video.playsInline = true;
-
-    let annotationMode = false;
-    let annotations = [];
-    const annotationMeshes = new THREE.Group();
-    scene.add(annotationMeshes);
-    const raycaster = new THREE.Raycaster();
-    const pointer = new THREE.Vector2();
-    const annotationList = document.getElementById('annotation-list');
-    function renderAnnotationMeshes() {
-      annotationMeshes.clear();
-      annotations.forEach((item) => {
-        const marker = new THREE.Mesh(new THREE.SphereGeometry(5, 16, 12), new THREE.MeshBasicMaterial({ color: 0xffcc33, depthTest: false }));
-        const direction = new THREE.Vector3(item.x, item.y, item.z).normalize();
-        marker.position.copy(direction).multiplyScalar(470);
-        marker.renderOrder = 10;
-        annotationMeshes.add(marker);
-
-        // Put a readable label next to each marker, facing the camera from inside the panorama.
-        const labelCanvas = document.createElement('canvas');
-        labelCanvas.width = 512;
-        labelCanvas.height = 128;
-        const ctx = labelCanvas.getContext('2d');
-        ctx.fillStyle = 'rgba(10, 11, 16, 0.88)';
-        ctx.strokeStyle = '#ffcc33';
-        ctx.lineWidth = 5;
-        ctx.beginPath();
-        ctx.roundRect(4, 4, 504, 120, 18);
-        ctx.fill();
-        ctx.stroke();
-        ctx.font = 'bold 34px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillStyle = '#ffffff';
-        const text = String(item.label || 'Annotation');
-        ctx.fillText(text.length > 26 ? text.slice(0, 23) + '…' : text, 256, 64);
-        const labelTexture = new THREE.CanvasTexture(labelCanvas);
-        labelTexture.colorSpace = THREE.SRGBColorSpace;
-        const label = new THREE.Sprite(new THREE.SpriteMaterial({ map: labelTexture, depthTest: false, transparent: true }));
-        label.position.copy(direction).multiplyScalar(450);
-        label.scale.set(42, 10.5, 1);
-        label.renderOrder = 11;
-        annotationMeshes.add(label);
-      });
-    }
-    function renderAnnotationList() {
-      document.getElementById('annotation-heading').textContent = `02 / Annotations (${annotations.length})`;
-      annotationList.replaceChildren();
-      if (!annotations.length) {
-        const li = document.createElement('li'); li.className = 'text-gray-500'; li.textContent = 'There are no annotations yet.'; annotationList.appendChild(li);
-      }
-      annotations.forEach((item, index) => {
-        const li = document.createElement('li'); li.className = 'flex items-center justify-between gap-2 rounded bg-gray-900 p-2';
-        const label = document.createElement('span'); label.textContent = item.label;
-        const remove = document.createElement('button'); remove.className = 'btn-dark rounded px-2 py-1'; remove.textContent = '×';
-        remove.addEventListener('click', () => { annotations.splice(index, 1); renderAnnotationMeshes(); renderAnnotationList(); });
-        li.append(label, remove); annotationList.appendChild(li);
-      });
-    }
-    function makeShareUrl() {
-      const url = new URL(location.href);
-      url.searchParams.set('video', video.src);
-      if (annotations.length) url.searchParams.set('annotations', btoa(unescape(encodeURIComponent(JSON.stringify(annotations)))));
-      else url.searchParams.delete('annotations');
-      return url.toString();
-    }
+    scene.add(new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ map: texture })));
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enablePan = false;
     controls.enableDamping = true;
     controls.dampingFactor = 0.06;
-    controls.rotateSpeed = 0.25;
+    controls.rotateSpeed = -0.25;
     controls.minDistance = 0.1;
     controls.maxDistance = 0.1;
     controls.minPolarAngle = 0.05;
@@ -304,69 +230,20 @@
       }
     });
 
-    document.getElementById('viewer-play-overlay').addEventListener('click', async () => {
-      try {
-        if (video.paused) await video.play(); else video.pause();
-      } catch (error) {
-        document.getElementById('upload-status').textContent = 'Cannot play video: ' + (error?.message || 'unsupported video format');
-      }
+    const buttons = document.querySelectorAll('main > .mt-4 button');
+    if (buttons[0]) buttons[0].addEventListener('click', async () => {
+      if (!video.src) return;
+      try { if (video.paused) await video.play(); else video.pause(); } catch {}
     });
-    video.addEventListener('play', () => document.getElementById('viewer-play-overlay').textContent = 'Ⅱ Pause');
-    video.addEventListener('pause', () => document.getElementById('viewer-play-overlay').textContent = '▶ Play');
-    document.getElementById('sound-toggle').addEventListener('click', () => {
-      video.muted = !video.muted;
-      document.getElementById('sound-toggle').textContent = video.muted ? '🔇 Sound off' : '🔊 Sound on';
+    if (buttons[1]) buttons[1].addEventListener('click', () => controls.reset());
+    if (buttons[3]) buttons[3].addEventListener('click', async () => {
+      if (!video.src) return;
+      const url = new URL(location.href);
+      url.searchParams.set('video', video.src);
+      try { await navigator.clipboard.writeText(url.toString()); document.getElementById('upload-status').textContent = 'Share link copied.'; }
+      catch { window.prompt('Copy share link:', url.toString()); }
     });
-    document.getElementById('loop-toggle').addEventListener('click', () => {
-      video.loop = !video.loop;
-      document.getElementById('loop-toggle').textContent = video.loop ? '↻ Loop on' : '↻ Loop off';
-    });
-    document.getElementById('reset-view').addEventListener('click', () => controls.reset());
-    document.getElementById('annotation-toggle').addEventListener('click', () => {
-      annotationMode = !annotationMode;
-      document.getElementById('annotation-toggle').textContent = annotationMode ? 'Click view to place…' : '+ Add annotation';
-      document.getElementById('upload-status').textContent = annotationMode ? 'Click a point in the 360° view.' : 'Annotation mode off.';
-    });
-    renderer.domElement.addEventListener('click', (event) => {
-      if (!annotationMode || !video.src) return;
-      const rect = renderer.domElement.getBoundingClientRect();
-      pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-      pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-      raycaster.setFromCamera(pointer, camera);
-      const hit = raycaster.intersectObject(panoramaSphere, false)[0];
-      if (!hit) return;
-      const label = prompt('Annotation label?');
-      if (!label || !label.trim()) return;
-      const p = hit.point.clone().normalize().multiplyScalar(470);
-      annotations.push({ label: label.trim(), x: p.x, y: p.y, z: p.z });
-      renderAnnotationMeshes(); renderAnnotationList();
-      annotationMode = false;
-      document.getElementById('annotation-toggle').textContent = '+ Add annotation';
-      document.getElementById('upload-status').textContent = 'Annotation added.';
-    });
-    const shareButton = document.getElementById('create-share-link');
-    shareButton.addEventListener('click', async () => {
-      const status = document.getElementById('share-status');
-      if (!video.src) {
-        status.textContent = 'Upload a video first, then create the share link.';
-        return;
-      }
-      const url = makeShareUrl();
-      try {
-        if (navigator.clipboard && window.isSecureContext) {
-          await navigator.clipboard.writeText(url);
-          status.textContent = 'Share link copied to clipboard.';
-        } else {
-          window.prompt('Copy this share link:', url);
-          status.textContent = 'Copy the link from the dialog.';
-        }
-      } catch (error) {
-        window.prompt('Copy this share link:', url);
-        status.textContent = 'Copy the link from the dialog.';
-      }
-    });
-
-    const fullscreen = document.getElementById('viewer-fullscreen');
+    const fullscreen = container.querySelector('button');
     if (fullscreen) fullscreen.addEventListener('click', async () => {
       try { if (!document.fullscreenElement) await container.requestFullscreen(); else await document.exitFullscreen(); } catch {}
     });
@@ -379,16 +256,6 @@
       document.getElementById('empty-viewer').classList.add('hidden');
       canvas.classList.remove('hidden');
       window.dispatchEvent(new CustomEvent('orbit-video-loaded'));
-      const encodedAnnotations = params.get('annotations');
-      if (encodedAnnotations) {
-        try {
-          annotations = JSON.parse(decodeURIComponent(escape(atob(encodedAnnotations))));
-          renderAnnotationMeshes();
-          renderAnnotationList();
-        } catch (error) {
-          console.warn('Could not read shared annotations:', error);
-        }
-      }
     }
 
     function animate() {
