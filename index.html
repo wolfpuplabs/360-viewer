@@ -281,7 +281,7 @@
 
     function encodeJson(value) {
       return btoa(unescape(encodeURIComponent(JSON.stringify(value))))
-        .replace(/\\+/g, '-').replace(/\\//g, '_').replace(/=+$/g, '');
+        .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
     }
     function decodeJson(value) {
       const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
