@@ -59,12 +59,10 @@
 
     <!-- Viewer Controls Bottom -->
     <div class="mt-4 flex flex-wrap gap-2 items-center">
-      <button id="play-toggle" class="btn-purple px-4 py-2 rounded-lg text-sm font-medium">▶ Play video</button>
       <button id="sound-toggle" class="btn-dark px-4 py-2 rounded-lg text-sm font-medium">🔊 Sound on</button>
       <button id="loop-toggle" class="btn-dark px-4 py-2 rounded-lg text-sm font-medium">↻ Loop on</button>
       <button id="reset-view" class="btn-dark px-4 py-2 rounded-lg text-sm font-medium">⟲ Reset view</button>
       <button id="annotation-toggle" class="btn-dark px-4 py-2 rounded-lg text-sm font-medium">+ Add annotation</button>
-      <button id="share-toggle" class="btn-dark px-4 py-2 rounded-lg text-sm font-medium">↗ Copy share link</button>
     </div>
     
     <div class="mt-4 text-xs text-gray-500">
@@ -317,12 +315,6 @@
       annotationMode = false;
       document.getElementById('annotation-toggle').textContent = '+ Add annotation';
       document.getElementById('upload-status').textContent = 'Annotation added.';
-    });
-    document.getElementById('share-toggle').addEventListener('click', async () => {
-      if (!video.src) return;
-      const url = makeShareUrl();
-      try { await navigator.clipboard.writeText(url); document.getElementById('upload-status').textContent = 'Share link copied.'; }
-      catch { prompt('Copy this share link:', url); }
     });
     const fullscreen = document.getElementById('viewer-fullscreen');
     if (fullscreen) fullscreen.addEventListener('click', async () => {
