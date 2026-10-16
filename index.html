@@ -382,7 +382,7 @@
       const encodedAnnotations = params.get('annotations');
       if (encodedAnnotations) {
         try {
-          annotations = JSON.parse(decodeURIComponent(escape(atob(encodedAnnotations)));
+          annotations = JSON.parse(decodeURIComponent(escape(atob(encodedAnnotations))));
           renderAnnotationMeshes();
           renderAnnotationList();
         } catch (error) {
